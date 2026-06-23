@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.so
+
+# Virtual environments
+backend/.venv/
+.venv/
+venv/
+env/
+
+# Database uploads (binary blobs)
+backend/app/hardware/uploads/
+
+# Logs
+*.log
+/tmp/
+
+# Local YOLO training artifacts (keep backend/models/pinky_best.pt)
+backend/runs/
+backend/yolov8n.pt
+backend/yolo26n.pt
+*.cache
+
+# Local datasets, captures, and DB backups (large/local-only)
+backend/captures/
+backend/pinky_dataset/
+*.local.bak
+
+# Frontend (별도 관리)
+frontend/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings
+.claude/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ROS2 build artifacts
+pinky_pro/build/
+pinky_pro/install/
+pinky_pro/log/
+
+# frontend_old (reference only, not shipped)
+frontend_old/node_modules/
