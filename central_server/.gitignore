@@ -33,8 +33,7 @@ backend/captures/
 backend/pinky_dataset/
 *.local.bak
 
-# Frontend (별도 관리)
-frontend/
+
 
 # OS
 .DS_Store
@@ -55,4 +54,4 @@ pinky_pro/install/
 pinky_pro/log/
 
 # frontend_old (reference only, not shipped)
-frontend_old/node_modules/
+frontend/node_modules/
