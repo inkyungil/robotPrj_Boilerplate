@@ -1,0 +1,22 @@
+from enum import Enum
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class RobotType(str, Enum):
+    arm = "arm"
+    driving = "driving"
+
+
+class Settings(BaseSettings):
+    """환경변수(.env)에서 로드되는 에이전트 설정."""
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    robot_type: RobotType = RobotType.arm
+    host: str = "0.0.0.0"
+    port: int = 9001
+    ros_node_name: str = "robot_agent"
+
+
+settings = Settings()
