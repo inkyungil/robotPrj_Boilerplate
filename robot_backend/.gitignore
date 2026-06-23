@@ -41,3 +41,5 @@ logs/
 .mypy_cache/
 htmlcov/
 .coverage
+
+.claude/
