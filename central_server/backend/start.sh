@@ -37,7 +37,7 @@ echo "[start] PinkyPro 백엔드 서버 시작 (포트: $PORT)..."
 if [ -f /opt/ros/jazzy/setup.bash ]; then
     source /opt/ros/jazzy/setup.bash
 fi
-nohup "$VENV/bin/uvicorn" main:app --host 0.0.0.0 --port "$PORT" > "$LOG" 2>&1 &
+nohup "$VENV/bin/python" -m uvicorn main:app --host 0.0.0.0 --port "$PORT" > "$LOG" 2>&1 &
 PID=$!
 echo "$PID" > "$PID_FILE"
 
