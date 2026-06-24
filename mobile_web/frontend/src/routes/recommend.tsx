@@ -1,16 +1,16 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { useI18n } from "@/lib/i18n";
-import { useQuery } from "@tanstack/react-query";
-import { Book } from "@/lib/mock-data";
-import { useState } from "react";
+import { BOOKS, type Book } from "@/lib/mock-data";
+import { fetchBooks } from "@/lib/books-api";
+import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
 
-const CATS = ["all", "fiction", "self", "foreign"] as const;
+const CATS = ["all", "literature", "art", "science"] as const;
 type Cat = (typeof CATS)[number];
 
 export const Route = createFileRoute("/recommend")({
-  head: () => ({ meta: [{ title: "Libi Bot — 추천 랭킹" }] }),
+  head: () => ({ meta: [{ title: "Labi Bot — 추천 랭킹" }] }),
   component: Recommend,
 });
 
@@ -18,32 +18,27 @@ function Recommend() {
   const { lang, tr } = useI18n();
   const [cat, setCat] = useState<Cat>("all");
   const [open, setOpen] = useState<string | null>(null);
+  // Load the live catalog from the DB; fall back to the local mock on failure.
+  const [books, setBooks] = useState<Book[]>(BOOKS);
 
-  const { data: books = [], isLoading } = useQuery<Book[]>({
-    queryKey: ["books"],
-    queryFn: async () => {
-      const res = await fetch("/api/books");
-      if (!res.ok) throw new Error("Failed to fetch books");
-      return res.json();
-    },
-  });
+  useEffect(() => {
+    let alive = true;
+    fetchBooks({ limit: 200 }).then((rows) => {
+      if (alive && rows.length) setBooks(rows);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
-  const filtered =
-    cat === "all"
-      ? books
-      : books.filter((b) =>
-          cat === "self"
-            ? b.category === "self" || b.category === "humanities"
-            : b.category === cat,
-        );
+  const filtered = cat === "all" ? books : books.filter((b) => b.category === cat);
 
   const labels: Record<Cat, string> = {
     all: tr("catAll"),
-    fiction: tr("catFiction"),
-    self: tr("catSelf"),
-    foreign: tr("catForeign"),
+    literature: tr("catLiterature"),
+    art: tr("catArt"),
+    science: tr("catScience"),
   };
-
 
   return (
     <AppShell>
@@ -69,20 +64,13 @@ function Recommend() {
         </div>
 
         <ol className="mt-5 space-y-3">
-          {isLoading ? (
-            <div className="space-y-3 py-4">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="h-20 w-full animate-pulse rounded-2xl bg-card border border-border" />
-              ))}
-            </div>
-          ) : (
-            filtered.map((b, i) => {
-              const isOpen = open === b.id;
-              return (
-                <li
-                  key={b.id}
-                  className="overflow-hidden rounded-2xl border border-border bg-card shadow-card"
-                >
+          {filtered.map((b, i) => {
+            const isOpen = open === b.id;
+            return (
+              <li
+                key={b.id}
+                className="overflow-hidden rounded-2xl border border-border bg-card shadow-card"
+              >
                 <button
                   onClick={() => setOpen(isOpen ? null : b.id)}
                   className="flex w-full items-center gap-3 p-3 text-left"
@@ -129,8 +117,7 @@ function Recommend() {
                 )}
               </li>
             );
-          })
-        )}
+          })}
         </ol>
       </div>
     </AppShell>

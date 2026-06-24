@@ -34,13 +34,13 @@ def stats(
         )
         or 0
     )
-    total_conversations = _safe_count(db, "conversations")
-    total_messages = _safe_count(db, "messages")
+    total_conversations = _safe_count(db, "cb_conversations")
+    total_messages = _safe_count(db, "cb_messages")
 
     selected_model = None
     try:
         selected_model = db.scalar(
-            text("SELECT selected_model FROM ai_model_settings LIMIT 1")
+            text("SELECT selected_model FROM cb_ai_model_settings LIMIT 1")
         )
     except Exception:
         selected_model = None
@@ -51,7 +51,7 @@ def stats(
         since = date.today() - timedelta(days=13)
         rows = db.execute(
             text(
-                "SELECT DATE(created_at) d, COUNT(*) c FROM conversations "
+                "SELECT DATE(created_at) d, COUNT(*) c FROM cb_conversations "
                 "WHERE created_at >= :since GROUP BY DATE(created_at)"
             ),
             {"since": since},

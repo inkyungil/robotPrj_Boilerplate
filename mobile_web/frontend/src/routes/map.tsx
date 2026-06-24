@@ -4,7 +4,7 @@ import { ZONES } from "@/lib/mock-data";
 import { useState } from "react";
 
 export const Route = createFileRoute("/map")({
-  head: () => ({ meta: [{ title: "Libi Bot — 공간 안내" }] }),
+  head: () => ({ meta: [{ title: "Labi Bot — 공간 안내" }] }),
   component: MapPage,
 });
 
@@ -15,7 +15,7 @@ function MapPage() {
   return (
     <AppShell>
       <div className="px-5 pb-8 pt-3">
-        <h1 className="text-xl font-bold text-foreground">도서관 내부 지도</h1>
+        <h1 className="text-xl font-bold text-foreground">서점 내부 지도</h1>
         <p className="mt-1 text-xs text-muted-foreground">코너를 탭하면 상세 안내가 나와요</p>
 
         <div className="mt-4 rounded-2xl border border-border bg-card p-3 shadow-card">

@@ -67,6 +67,27 @@ class DashboardStats(BaseModel):
     recent_admins: list[AdminOut]
 
 
+# --- Customer-facing books / recommendations ---
+
+
+class BookOut(BaseModel):
+    """A catalog book shaped like the frontend `Book` type (multi-lang dicts)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    title: dict[str, str]
+    author: str
+    category: str
+    cover: str
+    color: str
+    zone: str
+    shelf: str
+    in_stock: bool = Field(serialization_alias="inStock")
+    summary: dict[str, str]
+    for_whom: dict[str, list[str]] = Field(serialization_alias="forWhom")
+
+
 # --- Dev Center: schema introspection (camelCase JSON for the frontend) ---
 
 
@@ -99,49 +120,3 @@ class ErdRelation(_CamelModel):
 class ErdResponse(_CamelModel):
     tables: list[SchemaTable]
     relations: list[ErdRelation]
-
-
-# --- Mobile Member & Robot Task Schemas ---
-
-class MemberOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    username: str
-    full_name: str | None = None
-    email: str | None = None
-    is_active: bool
-    created_at: datetime | None = None
-
-
-class MemberTokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    member: MemberOut
-
-
-class MemberCreate(BaseModel):
-    username: str = Field(min_length=3, max_length=64)
-    password: str = Field(min_length=4, max_length=128)  # relax min_length to 4 for easier testing
-    full_name: str | None = Field(default=None, max_length=128)
-    email: EmailStr | None = Field(default=None)
-
-
-
-class RobotTaskCreate(BaseModel):
-    book_id: int
-
-
-class RobotTaskOut(_CamelModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    member_id: int
-    book_id: int
-    status: str
-    zone: str
-    shelf: str
-    created_at: datetime
-    updated_at: datetime
-    book_title: str | None = None
-

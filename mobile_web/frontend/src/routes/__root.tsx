@@ -4,8 +4,6 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
-  useRouterState,
-  useNavigate,
 } from "@tanstack/react-router";
 import { useEffect } from "react";
 
@@ -78,12 +76,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Libi Bot — 도서관 AI 가이드" },
+      { title: "Labi Bot — 서점 AI 가이드" },
       { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" },
-      { name: "description", content: "음성과 텍스트로 책과 공간을 안내하는 도서관 AI 가이드, Libi Bot" },
+      { name: "description", content: "음성과 텍스트로 책과 공간을 안내하는 서점 AI 가이드, Labi Bot" },
       { name: "theme-color", content: "#1A237E" },
-      { property: "og:title", content: "Libi Bot — 도서관 AI 가이드" },
-      { property: "og:description", content: "음성과 텍스트로 책과 공간을 안내하는 도서관 AI 가이드" },
+      { property: "og:title", content: "Labi Bot — 서점 AI 가이드" },
+      { property: "og:description", content: "음성과 텍스트로 책과 공간을 안내하는 서점 AI 가이드" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -101,20 +99,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const navigate = useNavigate();
-  const routerState = useRouterState();
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const pathname = routerState.location.pathname;
-      const token = localStorage.getItem("libi.memberToken");
-      const isPublic = pathname === "/" || pathname === "/login" || pathname.startsWith("/admin");
-
-      if (!token && !isPublic) {
-        void navigate({ to: "/login", search: { redirect: pathname } });
-      }
-    }
-  }, [routerState.location.pathname, navigate]);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -124,4 +108,3 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
-

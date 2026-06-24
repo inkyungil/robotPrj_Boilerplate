@@ -1,6 +1,6 @@
-# Libi Bot — 도서관 AI 가이드
+# Labi Bot — 서점 AI 가이드
 
-음성·텍스트로 책과 도서관 공간을 안내하는 **도서관 AI 가이드 챗봇**입니다.
+음성·텍스트로 책과 매장 공간을 안내하는 **서점 AI 가이드 챗봇**입니다.
 로컬 LLM([Ollama](https://ollama.com))을 사용해 외부 API 비용 없이 동작하며, 한국어·영어·중국어·베트남어를 지원합니다.
 
 ---
@@ -161,3 +161,30 @@ src/
 
 - 음성 인식은 **보안 컨텍스트(HTTPS 또는 localhost)** 에서만 동작합니다. ngrok(https)·localhost는 OK, 평문 http LAN 접속은 마이크가 막힙니다.
 - Ollama 서버가 꺼져 있으면 챗봇은 내장 기본 안내문(fallback)으로 응답합니다.
+
+
+ngrok http --url=sanora-wretched-lenard.ngrok-free.dev 3000
+
+
+
+  수정 후 재시작:
+
+  sudo systemctl restart labi-admin-api
+
+  상태 확인:
+
+  sudo systemctl status labi-admin-api
+
+  로그 확인:
+
+  sudo journalctl -u labi-admin-api -f
+
+  nginx 설정까지 바꿨으면 백엔드 재시작 후 nginx도 reload:
+
+  sudo nginx -t
+  sudo systemctl reload nginx
+
+  서비스 목록보기
+  #systemctl list-units --type=service --state=running
+  
+  systemctl list-units --type=service | grep labi

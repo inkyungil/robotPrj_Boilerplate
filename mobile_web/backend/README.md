@@ -14,7 +14,7 @@ cp .env.example .env
 # edit .env: real DATABASE_URL (labi_user creds) and a random JWT_SECRET
 python -c "import secrets;print(secrets.token_urlsafe(48))"   # -> JWT_SECRET
 
-python scripts/seed_admin.py     # creates admin_users table + initial superadmin (prints password)
+python scripts/seed_admin.py     # creates cb_admin_users table + initial superadmin (prints password)
 uvicorn app.main:app --reload --port 8000
 ```
 

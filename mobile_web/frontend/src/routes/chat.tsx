@@ -2,36 +2,179 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { BottomNav } from "@/components/BottomNav";
 import { LANGS, useI18n } from "@/lib/i18n";
-import { QUICK_CHIPS, BOOKS } from "@/lib/mock-data";
-import { useSpeechRecognition, speak } from "@/lib/use-speech";
-import { Mic, Send, Volume2, Map as MapIcon, X, Menu } from "lucide-react";
+import { QUICK_CHIPS, BOOKS, ZONES, type Book } from "@/lib/mock-data";
+import {
+  detectCategory,
+  fetchRecommendedBooks,
+  isRecommendIntent,
+} from "@/lib/books-api";
+import { Send, Map as MapIcon, X, Menu } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 export const Route = createFileRoute("/chat")({
-  head: () => ({ meta: [{ title: "Libi Bot — Libi Bot 챗봇" }] }),
+  head: () => ({ meta: [{ title: "Labi Bot — Labi Bot 챗봇" }] }),
   component: ChatPage,
 });
 
-type Msg = { id: string; role: "user" | "bot"; text: string; showMap?: boolean; pending?: boolean };
+type Msg = {
+  id: string;
+  role: "user" | "bot";
+  text: string;
+  showMap?: boolean;
+  pending?: boolean;
+  books?: Book[];
+};
 
 // Same-origin path proxied to the local Ollama server by nginx (works through ngrok / external too).
 const OLLAMA_URL = import.meta.env.VITE_OLLAMA_URL ?? "/ollama";
 const OLLAMA_MODEL_KEY = "labi.ollamaModel";
 const DEFAULT_OLLAMA_MODEL = import.meta.env.VITE_OLLAMA_MODEL ?? "qwen3:1.7b";
 
+const API_BASE = (import.meta.env.VITE_ADMIN_API_URL ?? "").replace(/\/$/, "");
+
 function getSelectedOllamaModel() {
   if (typeof window === "undefined") return DEFAULT_OLLAMA_MODEL;
   return localStorage.getItem(OLLAMA_MODEL_KEY) || DEFAULT_OLLAMA_MODEL;
+}
+
+function tryParseRobotCommand(text: string): { robot_type: string; action: string; parameters: any } | null {
+  const q = text.toLowerCase().trim();
+
+  // Mobile Robot commands
+  if (/(앞으로|전진)/.test(q)) {
+    const distMatch = q.match(/([\d\.]+)\s*(초|미터|m|초 동안)/);
+    const duration = distMatch ? parseFloat(distMatch[1]) : 1.0;
+    return {
+      robot_type: "mobile",
+      action: "move",
+      parameters: { left: 50, right: 50, duration }
+    };
+  }
+  if (/(뒤로|후진)/.test(q)) {
+    const distMatch = q.match(/([\d\.]+)\s*(초|미터|m|초 동안)/);
+    const duration = distMatch ? parseFloat(distMatch[1]) : 1.0;
+    return {
+      robot_type: "mobile",
+      action: "move",
+      parameters: { left: -50, right: -50, duration }
+    };
+  }
+  if (/(좌회전|왼쪽으로)/.test(q)) {
+    return {
+      robot_type: "mobile",
+      action: "move",
+      parameters: { left: -40, right: 40, duration: 0.8 }
+    };
+  }
+  if (/(우회전|오른쪽으로)/.test(q)) {
+    return {
+      robot_type: "mobile",
+      action: "move",
+      parameters: { left: 40, right: -40, duration: 0.8 }
+    };
+  }
+  if (/(정지|멈춰|멈춤|스톱|stop)/i.test(q)) {
+    if (/팔/.test(q)) {
+      return {
+        robot_type: "arm",
+        action: "stop",
+        parameters: {}
+      };
+    }
+    return {
+      robot_type: "mobile",
+      action: "stop",
+      parameters: {}
+    };
+  }
+  if (/(웃어줘|표정|행복|해피|happy)/.test(q)) {
+    return {
+      robot_type: "mobile",
+      action: "emotion",
+      parameters: { emotion: "happy" }
+    };
+  }
+  if (/(슬픈|슬퍼)/.test(q)) {
+    return {
+      robot_type: "mobile",
+      action: "emotion",
+      parameters: { emotion: "sad" }
+    };
+  }
+  if (/(화나|화내)/.test(q)) {
+    return {
+      robot_type: "mobile",
+      action: "emotion",
+      parameters: { emotion: "angry" }
+    };
+  }
+  if (/(소리|벨|삐|비프|소리내)/.test(q)) {
+    return {
+      robot_type: "mobile",
+      action: "buzzer",
+      parameters: { preset: "bell", count: 1 }
+    };
+  }
+
+  // Robot Arm commands
+  if (/로봇팔.*(원위치|홈|home)/.test(q) || /(팔.*홈)/.test(q)) {
+    return {
+      robot_type: "arm",
+      action: "home",
+      parameters: {}
+    };
+  }
+  if (/(얼굴\s*추적|얼굴\s*따라|얼굴\s*추적\s*시작)/.test(q)) {
+    return {
+      robot_type: "arm",
+      action: "face-track",
+      parameters: { start: true }
+    };
+  }
+  if (/(얼굴\s*추적\s*중지|얼굴\s*추적\s*멈춰)/.test(q)) {
+    return {
+      robot_type: "arm",
+      action: "face-track",
+      parameters: { start: false }
+    };
+  }
+  if (/(사물\s*인식|객체\s*인식|물건\s*인식)/.test(q)) {
+    return {
+      robot_type: "arm",
+      action: "classify",
+      parameters: { start: true }
+    };
+  }
+  if (/(글자\s*인식|텍스트\s*인식|ocr|글씨\s*인식)/i.test(q)) {
+    return {
+      robot_type: "arm",
+      action: "ocr",
+      parameters: { start: true }
+    };
+  }
+
+  return null;
+}
+
+// Turn DB books into a compact context block the LLM can recommend from.
+function booksContext(books: Book[], lang: "KR" | "EN" | "ZH" | "VI"): string {
+  return books
+    .map((b) => {
+      const tags = (b.forWhom[lang] ?? []).join(" ");
+      const stock = b.inStock ? "available" : "out of stock";
+      return `- "${b.title[lang]}" by ${b.author} | category: ${b.category} | location: ${b.zone} ${b.shelf} | ${stock} | ${b.summary[lang] ?? ""} ${tags}`;
+    })
+    .join("\n");
 }
 
 async function askLocalLlm(
   input: string,
   lang: "KR" | "EN" | "ZH" | "VI",
   model: string,
-  booksContext?: string,
   onToken?: (fullText: string) => void,
+  books?: Book[],
 ) {
   const languageName = {
     KR: "Korean",
@@ -41,6 +184,25 @@ async function askLocalLlm(
   }[lang];
   const endpoint = OLLAMA_URL.endsWith("/") ? OLLAMA_URL.slice(0, -1) : OLLAMA_URL;
 
+  const systemLines = [
+    "You are Labi Bot, a helpful AI guide for a bookstore app and robot controller.",
+    "You MUST write every reply only in " + languageName + ", regardless of the language the user writes in.",
+    "Never answer in any other language.",
+    "Keep answers concise and practical.",
+    "If the user asks about books, recommend concrete titles or ask for the title or genre.",
+    "If the user asks about facilities or shelf location, give a short directional answer.",
+    "If the user commands you to move or control the mobile robot or robot arm (e.g. '앞으로 가줘', '로봇팔 원위치'), you MUST start your response with exact JSON string:",
+    "CMD:{\"robot_type\": \"mobile\"|\"arm\", \"action\": \"...\", \"parameters\": {...}}",
+    "supported actions: 'move' (params: left, right, duration), 'stop', 'emotion' (params: emotion), 'buzzer', 'home', 'angles', 'face-track' (params: start:true/false), 'classify' (params: start:true/false), 'ocr' (params: start:true/false). Examples: CMD:{\"robot_type\":\"mobile\",\"action\":\"move\",\"parameters\":{\"left\":50,\"right\":50,\"duration\":1.0}} or CMD:{\"robot_type\":\"arm\",\"action\":\"home\",\"parameters\":{}}",
+  ];
+  if (books && books.length > 0) {
+    systemLines.push(
+      "Here are real books currently in the store database. Recommend ONLY from this list,",
+      "mention each book's shelf location, and do not invent titles that are not listed:",
+      booksContext(books, lang),
+    );
+  }
+
   const response = await fetch(endpoint + "/api/chat", {
     method: "POST",
     headers: { "content-type": "application/json", "ngrok-skip-browser-warning": "true" },
@@ -48,18 +210,7 @@ async function askLocalLlm(
       model,
       stream: true,
       messages: [
-        {
-          role: "system",
-          content: [
-            "You are Libi Bot, a helpful AI guide for a library app.",
-            "You MUST write every reply only in " + languageName + ", regardless of the language the user writes in.",
-            "Never answer in any other language.",
-            "Keep answers concise and practical.",
-            booksContext ? `Here is the current real-time library database containing books relevant to the user's query:\n${booksContext}\nAlways use this real database information to recommend books. If the user asks for loanable books (대출 가능한 책), recommend only the books in this list that have '대출 가능' status. Never recommend books that are not in the database if the user is asking for real books. Include their location (zone and shelf) in the response.` : "",
-            "If the user asks about books, recommend concrete titles from the database list above or ask for the title or genre.",
-            "If the user asks about facilities or shelf location, give a short directional answer.",
-          ].join(" "),
-        },
+        { role: "system", content: systemLines.join("\n") },
         { role: "user", content: input },
       ],
       options: {
@@ -110,32 +261,40 @@ export function makeReply(input: string, lang: "KR" | "EN" | "ZH" | "VI"): { tex
     return {
       text:
         lang === "KR"
-          ? "화장실은 입구 오른쪽 끝, 외국도서 코너 옆에 있어요. (F-옆)"
+          ? "화장실은 오른쪽 끝, 북카페 옆에 있어요."
           : lang === "EN"
-            ? "The restroom is at the far right by the foreign-books section."
+            ? "The restroom is at the far right, next to the book café."
             : lang === "ZH"
-              ? "洗手间在外文书区旁边,入口右侧尽头。"
-              : "Nhà vệ sinh ở cuối bên phải lối vào, cạnh khu sách ngoại văn.",
+              ? "洗手间在最右侧,书咖旁边。"
+              : "Nhà vệ sinh ở cuối bên phải, cạnh quán cà phê sách.",
       showMap: true,
     };
   }
   if (/(지도|map|地图|bản đồ)/.test(q)) {
     return { text: lang === "KR" ? "지도를 띄울게요." : "Opening the map.", showMap: true };
   }
-  if (/(시집|poetry|诗|thơ|위로|comfort)/.test(q)) {
+  if (/(문학|소설|literature|fiction|novel|文学|văn học)/.test(q)) {
     return {
       text:
         lang === "KR"
-          ? "위로가 필요할 땐 『불편한 편의점』(A-2 셋째 줄)을 추천드려요. 잔잔한 위로가 가득해요."
-          : "I recommend 'The Uncanny Convenience Store' (A-2). A warm, comforting read.",
+          ? "문학 코너(A) 추천으로는 『데미안』(A-1 첫째 줄)이 있어요. 자아를 찾아가는 성장소설이에요."
+          : "From Literature (Zone A), I recommend 'Demian' (A-1), a coming-of-age classic.",
     };
   }
-  if (/(경제|economy|经济|kinh tế)/.test(q)) {
+  if (/(예술|미술|art|design|艺术|nghệ thuật)/.test(q)) {
     return {
       text:
         lang === "KR"
-          ? "오늘 대출 가능한 경제 신간으로는 『트렌드 코리아 2026』(E-1 첫째 줄)이 있어요."
-          : "'Trend Korea 2026' (E-1) is in stock today.",
+          ? "예술 코너(B) 추천으로는 『서양미술사』(B-1 첫째 줄)가 있어요. 미술 입문에 좋아요."
+          : "From Art (Zone B), I recommend 'The Story of Art' (B-1), a great intro to art history.",
+    };
+  }
+  if (/(과학|science|宇宙|물리|khoa học)/.test(q)) {
+    return {
+      text:
+        lang === "KR"
+          ? "과학 코너(C) 추천으로는 『코스모스』(C-1 첫째 줄)가 있어요. 우주의 경이를 담은 명저예요."
+          : "From Science (Zone C), I recommend 'Cosmos' (C-1), a classic on the wonder of the universe.",
     };
   }
   // fallback: try to match a book
@@ -144,7 +303,7 @@ export function makeReply(input: string, lang: "KR" | "EN" | "ZH" | "VI"): { tex
     return {
       text:
         lang === "KR"
-          ? `『${found.title.KR}』은(는) ${found.zone} ${found.shelf}에 있어요. ${found.inStock ? "대출 가능 ✅" : "현재 대출 중입니다."}`
+          ? `『${found.title.KR}』은(는) ${found.zone} ${found.shelf}에 있어요. ${found.inStock ? "재고 있음 ✅" : "현재 품절입니다."}`
           : `'${found.title[lang]}' is at ${found.zone}. ${found.inStock ? "In stock." : "Sold out."}`,
       showMap: found.inStock,
     };
@@ -152,8 +311,8 @@ export function makeReply(input: string, lang: "KR" | "EN" | "ZH" | "VI"): { tex
   return {
     text:
       lang === "KR"
-        ? "외국도서 코너는 1층 왼쪽 끝(F-2)이에요. 더 구체적으로 책 제목을 알려주시면 위치까지 안내해드릴게요."
-        : "Could you share a title or topic? I'll guide you to the exact shelf.",
+        ? "저희 서점은 문학(A)·예술(B)·과학(C) 코너로 구성돼 있어요. 분야나 책 제목을 알려주시면 위치까지 안내해드릴게요."
+        : "Our store has Literature (A), Art (B) and Science (C) sections. Tell me a field or title and I'll guide you.",
   };
 }
 
@@ -189,27 +348,90 @@ function MessageMarkdown({ text }: { text: string }) {
   );
 }
 
+// Resolve a book's zone code (e.g. "A-2") to a ZONES entry for the store map.
+function zoneFor(book: Book) {
+  const prefix = book.zone.split("-")[0];
+  return ZONES.find((z) => z.id === prefix) ?? null;
+}
+
+// Compact recommendation cards shown under a bot reply, backed by DB books.
+// Tapping a card opens the store map highlighting where the book is shelved.
+function BookCards({
+  books,
+  lang,
+  onLocate,
+}: {
+  books: Book[];
+  lang: "KR" | "EN" | "ZH" | "VI";
+  onLocate: (book: Book) => void;
+}) {
+  if (!books.length) return null;
+  const locateLabel = { KR: "위치 보기", EN: "Show location", ZH: "查看位置", VI: "Xem vị trí" }[lang];
+  return (
+    <div className="mt-2 space-y-2">
+      {books.map((b) => {
+        const zone = zoneFor(b);
+        return (
+          <button
+            key={b.id}
+            type="button"
+            onClick={() => onLocate(b)}
+            className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-2.5 text-left shadow-card transition-colors hover:border-primary"
+          >
+            <div
+              className={`flex size-12 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${b.color} text-2xl`}
+            >
+              {b.cover}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="line-clamp-1 text-sm font-bold text-foreground">{b.title[lang]}</div>
+              <div className="text-[11px] text-muted-foreground">{b.author}</div>
+              <div className="mt-0.5 flex items-center gap-1.5 text-[11px]">
+                <span className="font-semibold text-primary">
+                  📍 {b.zone}{zone ? ` · ${zone.label}` : ""}
+                </span>
+                <span className="text-muted-foreground">{b.shelf}</span>
+                <span className={b.inStock ? "text-emerald-600" : "text-rose-500"}>
+                  {b.inStock ? "✅" : "⛔"}
+                </span>
+              </div>
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary-soft px-2 py-1 text-[10px] font-semibold text-primary">
+              <MapIcon className="size-3" />
+              {locateLabel}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function greetingFor(lang: "KR" | "EN" | "ZH" | "VI") {
   return lang === "KR"
-    ? "안녕하세요! 저는 도서관 가이드 Libi Bot이에요. 책 제목, 장르, 또는 시설 위치 무엇이든 물어봐 주세요 😊"
+    ? "안녕하세요! 저는 서점 가이드 Labi Bot이에요. 책 제목, 장르, 또는 시설 위치 무엇이든 물어봐 주세요 😊"
     : lang === "EN"
-      ? "Hi! I'm Libi Bot, your library guide. Ask me about any book, topic or facility."
+      ? "Hi! I'm Labi Bot, your bookstore guide. Ask me about any book, topic or facility."
       : lang === "ZH"
-        ? "您好,我是书店向导 Libi Bot,请随意询问任何书籍或设施。"
-        : "Xin chào! Tôi là Libi Bot, hướng dẫn viên nhà sách.";
+        ? "您好,我是书店向导 Labi Bot,请随意询问任何书籍或设施。"
+        : "Xin chào! Tôi là Labi Bot, hướng dẫn viên nhà sách.";
 }
 
 function ChatPage() {
   const { lang, tr } = useI18n();
-  const speechLang = LANGS.find((l) => l.code === lang)?.speech ?? "ko-KR";
-  const { listening, transcript, start, stop, setTranscript } = useSpeechRecognition(speechLang);
 
   const [messages, setMessages] = useState<Msg[]>([
     { id: "init", role: "bot", text: greetingFor(lang) },
   ]);
   const [input, setInput] = useState("");
   const [mapOpen, setMapOpen] = useState(false);
+  const [focusBook, setFocusBook] = useState<Book | null>(null);
   const [navOpen, setNavOpen] = useState(false);
+
+  const openMapFor = (book: Book) => {
+    setFocusBook(book);
+    setMapOpen(true);
+  };
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -223,20 +445,6 @@ function ChatPage() {
     );
   }, [lang]);
 
-  useEffect(() => {
-    if (transcript) setInput(transcript);
-  }, [transcript]);
-
-  useEffect(() => {
-    if (!listening && transcript.trim()) {
-      const text = transcript.trim();
-      setTranscript("");
-      setInput("");
-      void send(text);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listening]);
-
   const send = async (text: string) => {
     if (!text.trim()) return;
     const userMsg: Msg = { id: Math.random().toString(36), role: "user", text };
@@ -247,113 +455,166 @@ function ChatPage() {
       {
         id: pendingId,
         role: "bot",
-        text: lang === "KR" ? "Libi Bot이 로컬 LLM으로 답변을 작성 중이에요..." : "Libi Bot is thinking locally...",
+        text: lang === "KR" ? "Labi Bot이 로컬 LLM으로 답변을 작성 중이에요..." : "Labi Bot is thinking locally...",
         pending: true,
       },
     ]);
     setInput("");
 
-    // Fetch database books for RAG context
-    let dbBooks: any[] = [];
-    try {
-      const res = await fetch("/api/books");
-      if (res.ok) {
-        dbBooks = await res.json();
-      }
-    } catch (e) {
-      console.error("Failed to fetch books from DB", e);
-    }
-
-    // Filter books based on query keywords
-    let relevantBooks = dbBooks;
-    const q = text.toLowerCase();
-    
-    if (q.includes("경제") || q.includes("finance") || q.includes("economy") || q.includes("돈") || q.includes("주식")) {
-      relevantBooks = dbBooks.filter(b => b.category === "경제" || b.category?.includes("경제") || b.title.KR.includes("경제"));
-    } else if (q.includes("소설") || q.includes("novel") || q.includes("문학")) {
-      relevantBooks = dbBooks.filter(b => b.category === "소설" || b.category?.includes("소설"));
-    } else if (q.includes("자기계발") || q.includes("self") || q.includes("성공")) {
-      relevantBooks = dbBooks.filter(b => b.category === "자기계발" || b.category?.includes("자기계발"));
-    } else if (q.includes("외국") || q.includes("foreign") || q.includes("영어")) {
-      relevantBooks = dbBooks.filter(b => b.category === "외국도서" || b.category?.includes("외국"));
-    } else {
-      // search title or author
-      relevantBooks = dbBooks.filter(b => 
-        b.title.KR.toLowerCase().includes(q) || 
-        b.author.toLowerCase().includes(q)
-      );
-    }
-
-    const maxContextBooks = relevantBooks.slice(0, 15);
-    const booksContext = maxContextBooks.length > 0 
-      ? maxContextBooks.map(b => 
-          `- 제목: ${b.title.KR}, 저자: ${b.author}, 카테고리: ${b.category}, 위치: ${b.zone} 구역 (${b.shelf}), 대출상태: ${b.inStock ? "대출 가능" : "대출 중"}`
-        ).join("\n")
-      : "";
-
-    try {
-      const model = getSelectedOllamaModel();
-      const showMap = /(화장실|restroom|toilet|지도|map|洗手|地图|vệ sinh|bản đồ)/i.test(text);
-      // stream tokens in as they arrive (typing effect)
-      await askLocalLlm(text, lang, model, booksContext, (full) => {
-        setMessages((m) =>
-          m.map((msg) => (msg.id === pendingId ? { ...msg, text: full, pending: false } : msg)),
-        );
-      });
-      setMessages((m) =>
-        m.map((msg) => (msg.id === pendingId ? { ...msg, showMap, pending: false } : msg)),
-      );
-      if (showMap) setTimeout(() => setMapOpen(true), 400);
-    } catch (error) {
-      console.error(error);
-      
-      // Smart local search fallback using DB books
-      let fallbackText = "";
-      let showMap = false;
-
-      if (dbBooks.length > 0) {
-        if (q.includes("경제") || q.includes("finance") || q.includes("economy")) {
-          const economics = dbBooks.filter(b => (b.category === "경제" || b.category?.includes("경제")) && b.inStock);
-          if (economics.length > 0) {
-            fallbackText = `📚 오늘 대출 가능한 경제 서적 중 인기 있는 책들을 추천합니다:\n\n` + 
-              economics.slice(0, 3).map(b => `• **"${b.title.KR}"** (${b.author}) - 위치: ${b.zone} 구역 (${b.shelf})`).join("\n") +
-              `\n\n원하시면 도서 검색 메뉴에서 직접 책을 검색해 로봇을 호출하거나, 특정 분야 또는 최근 도서를 알려주세요!`;
-          } else {
-            fallbackText = `오늘 대출 가능한 경제 서적이 도서관에 남아있지 않습니다.`;
-          }
-        } else {
-          // general book match
-          const found = dbBooks.find(b => b.title.KR.toLowerCase().includes(q) || b.author.toLowerCase().includes(q));
-          if (found) {
-            fallbackText = `『${found.title.KR}』 (${found.author})은(는) 현재 ${found.zone} 구역 서가(${found.shelf})에 위치하고 있으며, ${found.inStock ? "대출 가능 ✅" : "대출 중 ❌"} 상태입니다.`;
-            showMap = found.inStock;
-          }
-        }
-      }
-
-      if (!fallbackText) {
-        const reply = makeReply(text, lang);
-        fallbackText = reply.text;
-        showMap = reply.showMap;
-      }
-
-      const suffix =
-        lang === "KR"
-          ? "(로컬 LLM 연결 실패로 실시간 DB 정보를 직접 검색하여 답변해 드렸습니다.)"
-          : lang === "EN"
-            ? "(Used real-time DB fallback because local LLM was unavailable.)"
-            : lang === "ZH"
-              ? "(本地 LLM 连接失败,已使用实时数据库指引。)"
-              : "(Đã dùng hướng dẫn thực tế vì không kết nối được LLM cục bộ.)";
-              
+    // 1. Check rule-based parser first
+    const directCmd = tryParseRobotCommand(text);
+    if (directCmd) {
       setMessages((m) =>
         m.map((msg) =>
           msg.id === pendingId
-            ? { ...msg, text: fallbackText + "\n\n" + suffix, showMap, pending: false }
+            ? { ...msg, text: `🤖 로봇 명령을 실행 중입니다... (${directCmd.robot_type} - ${directCmd.action})`, pending: true }
+            : msg
+        )
+      );
+      try {
+        const response = await fetch(`${API_BASE}/api/robot/execute`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_message: text,
+            robot_type: directCmd.robot_type,
+            action: directCmd.action,
+            parameters: directCmd.parameters
+          })
+        });
+        const result = await response.json();
+        const successMsg = result.success 
+          ? `🤖 로봇 명령이 성공적으로 실행되었습니다.\n\n- 대상: ${directCmd.robot_type}\n- 동작: ${directCmd.action}`
+          : `❌ 로봇 명령 실행에 실패했습니다.\n\n오류: ${result.response || "알 수 없는 에러"}`;
+        
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === pendingId
+              ? { ...msg, text: successMsg, pending: false }
+              : msg
+          )
+        );
+      } catch (err) {
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === pendingId
+              ? { ...msg, text: "❌ 백엔드 서버와의 연결에 실패하여 로봇을 제어할 수 없습니다.", pending: false }
+              : msg
+          )
+        );
+      }
+      return;
+    }
+
+    // 2. Fall back to LLM chat
+    try {
+      const model = getSelectedOllamaModel();
+      const showMap = /(화장실|restroom|toilet|지도|map|洗手|지도|map|洗手|지도|map|洗手|지도|map|지도|map|洗手|地图|vệ sinh|bản đồ)/i.test(text);
+
+      // When the user asks for a recommendation, pull real books from the DB so
+      // the bot grounds its answer (and we show the matching cards below it).
+      let books: Book[] = [];
+      if (isRecommendIntent(text)) {
+        books = await fetchRecommendedBooks({ category: detectCategory(text), q: text, limit: 4 });
+      }
+
+      let robotCmdJson: string | null = null;
+      let replyText = "";
+
+      // stream tokens in as they arrive (typing effect)
+      await askLocalLlm(
+        text,
+        lang,
+        model,
+        (full) => {
+          if (full.startsWith("CMD:")) {
+            robotCmdJson = full;
+            setMessages((m) =>
+              m.map((msg) => (msg.id === pendingId ? { ...msg, text: "🤖 자연어 지시 사항 분석 중...", pending: true } : msg)),
+            );
+          } else {
+            replyText = full;
+            setMessages((m) =>
+              m.map((msg) => (msg.id === pendingId ? { ...msg, text: full, pending: false } : msg)),
+            );
+          }
+        },
+        books,
+      );
+
+      // If LLM returned a command JSON
+      if (robotCmdJson) {
+        try {
+          const jsonStr = robotCmdJson.replace(/^CMD:/, "").trim();
+          const parsed = JSON.parse(jsonStr);
+          
+          setMessages((m) =>
+            m.map((msg) =>
+              msg.id === pendingId
+                ? { ...msg, text: `🤖 분석 완료. 로봇 명령을 실행 중입니다... (${parsed.robot_type} - ${parsed.action})`, pending: true }
+                : msg
+            )
+          );
+
+          const response = await fetch(`${API_BASE}/api/robot/execute`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              user_message: text,
+              robot_type: parsed.robot_type,
+              action: parsed.action,
+              parameters: parsed.parameters
+            })
+          });
+          const result = await response.json();
+          const successMsg = result.success 
+            ? `🤖 로봇 명령이 성공적으로 실행되었습니다.\n\n- 대상: ${parsed.robot_type}\n- 동작: ${parsed.action}`
+            : `❌ 로봇 명령 실행에 실패했습니다.\n\n오류: ${result.response || "알 수 없는 에러"}`;
+          
+          setMessages((m) =>
+            m.map((msg) =>
+              msg.id === pendingId
+                ? { ...msg, text: successMsg, pending: false }
+                : msg
+            )
+          );
+        } catch (err) {
+          setMessages((m) =>
+            m.map((msg) =>
+              msg.id === pendingId
+                ? { ...msg, text: "❌ LLM이 생성한 제어 포맷이 올바르지 않거나 실행 중 오류가 발생했습니다.", pending: false }
+                : msg
+            )
+          );
+        }
+      } else {
+        // Normal chat response
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === pendingId ? { ...msg, showMap, books, pending: false } : msg,
+          ),
+        );
+        if (showMap) setTimeout(() => setMapOpen(true), 400);
+      }
+    } catch (error) {
+      console.error(error);
+      const reply = makeReply(text, lang);
+      const suffix =
+        lang === "KR"
+          ? "(로컬 LLM 연결 실패로 기본 안내를 사용했어요.)"
+          : lang === "EN"
+            ? "(Used fallback because local LLM was unavailable.)"
+            : lang === "ZH"
+              ? "(本地 LLM 连接失败,已使用默认指引。)"
+              : "(Đã dùng hướng dẫn mặc định vì không kết nối được LLM cục bộ.)";
+      setMessages((m) =>
+        m.map((msg) =>
+          msg.id === pendingId
+            ? { ...msg, text: reply.text + "\n\n" + suffix, showMap: reply.showMap, pending: false }
             : msg,
         ),
       );
-      if (showMap) setTimeout(() => setMapOpen(true), 400);
+      if (reply.showMap) setTimeout(() => setMapOpen(true), 400);
     }
   };
 
@@ -385,15 +646,10 @@ function ChatPage() {
                       <MessageMarkdown text={m.text} />
                     )}
                   </div>
+                  {m.books && m.books.length > 0 && (
+                    <BookCards books={m.books} lang={lang} onLocate={openMapFor} />
+                  )}
                   <div className="mt-1 flex gap-2 px-1">
-                    <button
-                      onClick={() => speak(m.text, speechLang)}
-                      disabled={m.pending}
-                      className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground"
-                    >
-                      <Volume2 className="size-3" />
-                      듣기
-                    </button>
                     {m.showMap && (
                       <button
                         onClick={() => setMapOpen(true)}
@@ -444,27 +700,12 @@ function ChatPage() {
               <Menu className="size-5" />
             </button>
 
-            {/* input with mic inside on the left */}
-            <div className="relative flex-1">
-              <button
-                type="button"
-                onClick={() => (listening ? stop() : start())}
-                className={`absolute left-1.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full transition-colors ${
-                  listening
-                    ? "bg-accent text-accent-foreground voice-pulse"
-                    : "text-primary hover:bg-primary-soft"
-                }`}
-                aria-label="voice"
-              >
-                <Mic className="size-4" />
-              </button>
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={listening ? tr("listening") : tr("chatPh")}
-                className="h-11 w-full rounded-full border border-border bg-background pl-11 pr-4 text-sm outline-none focus:border-primary"
-              />
-            </div>
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={tr("chatPh")}
+              className="h-11 flex-1 rounded-full border border-border bg-background px-4 text-sm outline-none focus:border-primary"
+            />
 
             <button
               type="submit"
@@ -478,34 +719,70 @@ function ChatPage() {
         </div>
 
         {/* slide-up map */}
-        {mapOpen && (
+        {mapOpen && (() => {
+          const focusZone = focusBook ? zoneFor(focusBook) : null;
+          return (
           <div className="fixed inset-x-0 bottom-0 z-50 mx-auto max-w-md animate-in slide-in-from-bottom rounded-t-3xl border-t border-border bg-card p-5 shadow-float">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="font-bold text-foreground">📍 도서관 지도</h3>
-              <button onClick={() => setMapOpen(false)} aria-label="close">
+              <h3 className="font-bold text-foreground">📍 서점 지도</h3>
+              <button
+                onClick={() => {
+                  setMapOpen(false);
+                  setFocusBook(null);
+                }}
+                aria-label="close"
+              >
                 <X className="size-5 text-muted-foreground" />
               </button>
             </div>
+
+            {focusBook && (
+              <div className="mb-3 flex items-center gap-2 rounded-xl bg-primary-soft px-3 py-2">
+                <span className="text-xl">{focusBook.cover}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="line-clamp-1 text-sm font-bold text-foreground">
+                    {focusBook.title[lang]}
+                  </div>
+                  <div className="text-[11px] font-semibold text-primary">
+                    📍 {focusBook.zone}{focusZone ? ` · ${focusZone.label}` : ""} · {focusBook.shelf}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="relative aspect-video overflow-hidden rounded-xl bg-paper ring-1 ring-border">
               <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(to_right,oklch(0.27_0.12_273)_1px,transparent_1px),linear-gradient(to_bottom,oklch(0.27_0.12_273)_1px,transparent_1px)] [background-size:20px_20px]" />
-              <div className="absolute left-[10%] top-[10%] flex h-1/3 w-1/3 items-center justify-center rounded bg-rose-200 ring-2 ring-primary text-xs font-bold">
-                A · 소설
-              </div>
-              <div className="absolute right-[10%] top-[55%] flex h-1/3 w-1/3 items-center justify-center rounded bg-stone-200 text-xs font-bold">
-                화장실
-              </div>
-              <div className="absolute bottom-2 left-2 rounded-full bg-primary px-3 py-1 text-[10px] font-bold text-primary-foreground">
-                📍 현위치
-              </div>
+              {ZONES.map((z) => {
+                const active = focusZone?.id === z.id;
+                return (
+                  <div
+                    key={z.id}
+                    style={{ left: `${z.x}%`, top: `${z.y}%`, width: `${z.w}%`, height: `${z.h}%` }}
+                    className={`absolute flex items-center justify-center rounded ${z.color} text-center text-[10px] font-bold leading-tight transition-all ${
+                      active
+                        ? "z-10 scale-105 ring-2 ring-primary shadow-float"
+                        : focusZone
+                          ? "opacity-50"
+                          : ""
+                    }`}
+                  >
+                    {active ? `📍 ${z.id} · ${z.label}` : `${z.id} · ${z.label}`}
+                  </div>
+                );
+              })}
             </div>
             <button
-              onClick={() => setMapOpen(false)}
+              onClick={() => {
+                setMapOpen(false);
+                setFocusBook(null);
+              }}
               className="mt-4 h-11 w-full rounded-xl bg-primary text-sm font-bold text-primary-foreground"
             >
               대화로 돌아가기
             </button>
           </div>
-        )}
+          );
+        })()}
 
         {/* slide-up bottom menu (opened by hamburger) */}
         {navOpen && (

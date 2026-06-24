@@ -11,11 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SearchRouteImport } from './routes/search'
-import { Route as RobotLocationRouteImport } from './routes/robot-location'
-import { Route as RobotRouteImport } from './routes/robot'
+import { Route as ScanRouteImport } from './routes/scan'
 import { Route as RecommendRouteImport } from './routes/recommend'
+import { Route as OcrRouteImport } from './routes/ocr'
 import { Route as MapRouteImport } from './routes/map'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as HomeRouteImport } from './routes/home'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as IndexRouteImport } from './routes/index'
@@ -23,14 +22,11 @@ import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminAuthedRouteImport } from './routes/admin/_authed'
 import { Route as AdminAuthedIndexRouteImport } from './routes/admin/_authed/index'
 import { Route as AdminAuthedUsersRouteImport } from './routes/admin/_authed/users'
-import { Route as AdminAuthedBooksIndexRouteImport } from './routes/admin/_authed/books/index'
 import { Route as AdminAuthedDevTablesRouteImport } from './routes/admin/_authed/dev/tables'
 import { Route as AdminAuthedDevServerOpsRouteImport } from './routes/admin/_authed/dev/server-ops'
 import { Route as AdminAuthedDevErdRouteImport } from './routes/admin/_authed/dev/erd'
 import { Route as AdminAuthedDevArchitectureRouteImport } from './routes/admin/_authed/dev/architecture'
 import { Route as AdminAuthedDevApiDocsRouteImport } from './routes/admin/_authed/dev/api-docs'
-import { Route as AdminAuthedBooksNewRouteImport } from './routes/admin/_authed/books/new'
-import { Route as AdminAuthedBooksEditRouteImport } from './routes/admin/_authed/books/edit'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -42,14 +38,9 @@ const SearchRoute = SearchRouteImport.update({
   path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RobotLocationRoute = RobotLocationRouteImport.update({
-  id: '/robot-location',
-  path: '/robot-location',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RobotRoute = RobotRouteImport.update({
-  id: '/robot',
-  path: '/robot',
+const ScanRoute = ScanRouteImport.update({
+  id: '/scan',
+  path: '/scan',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RecommendRoute = RecommendRouteImport.update({
@@ -57,14 +48,14 @@ const RecommendRoute = RecommendRouteImport.update({
   path: '/recommend',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OcrRoute = OcrRouteImport.update({
+  id: '/ocr',
+  path: '/ocr',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MapRoute = MapRouteImport.update({
   id: '/map',
   path: '/map',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HomeRoute = HomeRouteImport.update({
@@ -102,11 +93,6 @@ const AdminAuthedUsersRoute = AdminAuthedUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AdminAuthedRoute,
 } as any)
-const AdminAuthedBooksIndexRoute = AdminAuthedBooksIndexRouteImport.update({
-  id: '/books/',
-  path: '/books/',
-  getParentRoute: () => AdminAuthedRoute,
-} as any)
 const AdminAuthedDevTablesRoute = AdminAuthedDevTablesRouteImport.update({
   id: '/dev/tables',
   path: '/dev/tables',
@@ -133,88 +119,66 @@ const AdminAuthedDevApiDocsRoute = AdminAuthedDevApiDocsRouteImport.update({
   path: '/dev/api-docs',
   getParentRoute: () => AdminAuthedRoute,
 } as any)
-const AdminAuthedBooksNewRoute = AdminAuthedBooksNewRouteImport.update({
-  id: '/books/new',
-  path: '/books/new',
-  getParentRoute: () => AdminAuthedRoute,
-} as any)
-const AdminAuthedBooksEditRoute = AdminAuthedBooksEditRouteImport.update({
-  id: '/books/edit',
-  path: '/books/edit',
-  getParentRoute: () => AdminAuthedRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/chat': typeof ChatRoute
   '/home': typeof HomeRoute
-  '/login': typeof LoginRoute
   '/map': typeof MapRoute
+  '/ocr': typeof OcrRoute
   '/recommend': typeof RecommendRoute
-  '/robot': typeof RobotRoute
-  '/robot-location': typeof RobotLocationRoute
+  '/scan': typeof ScanRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/admin': typeof AdminAuthedRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
   '/admin/users': typeof AdminAuthedUsersRoute
   '/admin/': typeof AdminAuthedIndexRoute
-  '/admin/books/edit': typeof AdminAuthedBooksEditRoute
-  '/admin/books/new': typeof AdminAuthedBooksNewRoute
   '/admin/dev/api-docs': typeof AdminAuthedDevApiDocsRoute
   '/admin/dev/architecture': typeof AdminAuthedDevArchitectureRoute
   '/admin/dev/erd': typeof AdminAuthedDevErdRoute
   '/admin/dev/server-ops': typeof AdminAuthedDevServerOpsRoute
   '/admin/dev/tables': typeof AdminAuthedDevTablesRoute
-  '/admin/books/': typeof AdminAuthedBooksIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/chat': typeof ChatRoute
   '/home': typeof HomeRoute
-  '/login': typeof LoginRoute
   '/map': typeof MapRoute
+  '/ocr': typeof OcrRoute
   '/recommend': typeof RecommendRoute
-  '/robot': typeof RobotRoute
-  '/robot-location': typeof RobotLocationRoute
+  '/scan': typeof ScanRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/users': typeof AdminAuthedUsersRoute
   '/admin': typeof AdminAuthedIndexRoute
-  '/admin/books/edit': typeof AdminAuthedBooksEditRoute
-  '/admin/books/new': typeof AdminAuthedBooksNewRoute
   '/admin/dev/api-docs': typeof AdminAuthedDevApiDocsRoute
   '/admin/dev/architecture': typeof AdminAuthedDevArchitectureRoute
   '/admin/dev/erd': typeof AdminAuthedDevErdRoute
   '/admin/dev/server-ops': typeof AdminAuthedDevServerOpsRoute
   '/admin/dev/tables': typeof AdminAuthedDevTablesRoute
-  '/admin/books': typeof AdminAuthedBooksIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/chat': typeof ChatRoute
   '/home': typeof HomeRoute
-  '/login': typeof LoginRoute
   '/map': typeof MapRoute
+  '/ocr': typeof OcrRoute
   '/recommend': typeof RecommendRoute
-  '/robot': typeof RobotRoute
-  '/robot-location': typeof RobotLocationRoute
+  '/scan': typeof ScanRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/admin/_authed': typeof AdminAuthedRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
   '/admin/_authed/users': typeof AdminAuthedUsersRoute
   '/admin/_authed/': typeof AdminAuthedIndexRoute
-  '/admin/_authed/books/edit': typeof AdminAuthedBooksEditRoute
-  '/admin/_authed/books/new': typeof AdminAuthedBooksNewRoute
   '/admin/_authed/dev/api-docs': typeof AdminAuthedDevApiDocsRoute
   '/admin/_authed/dev/architecture': typeof AdminAuthedDevArchitectureRoute
   '/admin/_authed/dev/erd': typeof AdminAuthedDevErdRoute
   '/admin/_authed/dev/server-ops': typeof AdminAuthedDevServerOpsRoute
   '/admin/_authed/dev/tables': typeof AdminAuthedDevTablesRoute
-  '/admin/_authed/books/': typeof AdminAuthedBooksIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -222,83 +186,70 @@ export interface FileRouteTypes {
     | '/'
     | '/chat'
     | '/home'
-    | '/login'
     | '/map'
+    | '/ocr'
     | '/recommend'
-    | '/robot'
-    | '/robot-location'
+    | '/scan'
     | '/search'
     | '/settings'
     | '/admin'
     | '/admin/login'
     | '/admin/users'
     | '/admin/'
-    | '/admin/books/edit'
-    | '/admin/books/new'
     | '/admin/dev/api-docs'
     | '/admin/dev/architecture'
     | '/admin/dev/erd'
     | '/admin/dev/server-ops'
     | '/admin/dev/tables'
-    | '/admin/books/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/chat'
     | '/home'
-    | '/login'
     | '/map'
+    | '/ocr'
     | '/recommend'
-    | '/robot'
-    | '/robot-location'
+    | '/scan'
     | '/search'
     | '/settings'
     | '/admin/login'
     | '/admin/users'
     | '/admin'
-    | '/admin/books/edit'
-    | '/admin/books/new'
     | '/admin/dev/api-docs'
     | '/admin/dev/architecture'
     | '/admin/dev/erd'
     | '/admin/dev/server-ops'
     | '/admin/dev/tables'
-    | '/admin/books'
   id:
     | '__root__'
     | '/'
     | '/chat'
     | '/home'
-    | '/login'
     | '/map'
+    | '/ocr'
     | '/recommend'
-    | '/robot'
-    | '/robot-location'
+    | '/scan'
     | '/search'
     | '/settings'
     | '/admin/_authed'
     | '/admin/login'
     | '/admin/_authed/users'
     | '/admin/_authed/'
-    | '/admin/_authed/books/edit'
-    | '/admin/_authed/books/new'
     | '/admin/_authed/dev/api-docs'
     | '/admin/_authed/dev/architecture'
     | '/admin/_authed/dev/erd'
     | '/admin/_authed/dev/server-ops'
     | '/admin/_authed/dev/tables'
-    | '/admin/_authed/books/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ChatRoute: typeof ChatRoute
   HomeRoute: typeof HomeRoute
-  LoginRoute: typeof LoginRoute
   MapRoute: typeof MapRoute
+  OcrRoute: typeof OcrRoute
   RecommendRoute: typeof RecommendRoute
-  RobotRoute: typeof RobotRoute
-  RobotLocationRoute: typeof RobotLocationRoute
+  ScanRoute: typeof ScanRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   AdminAuthedRoute: typeof AdminAuthedRouteWithChildren
@@ -321,18 +272,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/robot-location': {
-      id: '/robot-location'
-      path: '/robot-location'
-      fullPath: '/robot-location'
-      preLoaderRoute: typeof RobotLocationRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/robot': {
-      id: '/robot'
-      path: '/robot'
-      fullPath: '/robot'
-      preLoaderRoute: typeof RobotRouteImport
+    '/scan': {
+      id: '/scan'
+      path: '/scan'
+      fullPath: '/scan'
+      preLoaderRoute: typeof ScanRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/recommend': {
@@ -342,18 +286,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RecommendRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ocr': {
+      id: '/ocr'
+      path: '/ocr'
+      fullPath: '/ocr'
+      preLoaderRoute: typeof OcrRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/map': {
       id: '/map'
       path: '/map'
       fullPath: '/map'
       preLoaderRoute: typeof MapRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/home': {
@@ -405,13 +349,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAuthedUsersRouteImport
       parentRoute: typeof AdminAuthedRoute
     }
-    '/admin/_authed/books/': {
-      id: '/admin/_authed/books/'
-      path: '/books'
-      fullPath: '/admin/books/'
-      preLoaderRoute: typeof AdminAuthedBooksIndexRouteImport
-      parentRoute: typeof AdminAuthedRoute
-    }
     '/admin/_authed/dev/tables': {
       id: '/admin/_authed/dev/tables'
       path: '/dev/tables'
@@ -447,47 +384,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAuthedDevApiDocsRouteImport
       parentRoute: typeof AdminAuthedRoute
     }
-    '/admin/_authed/books/new': {
-      id: '/admin/_authed/books/new'
-      path: '/books/new'
-      fullPath: '/admin/books/new'
-      preLoaderRoute: typeof AdminAuthedBooksNewRouteImport
-      parentRoute: typeof AdminAuthedRoute
-    }
-    '/admin/_authed/books/edit': {
-      id: '/admin/_authed/books/edit'
-      path: '/books/edit'
-      fullPath: '/admin/books/edit'
-      preLoaderRoute: typeof AdminAuthedBooksEditRouteImport
-      parentRoute: typeof AdminAuthedRoute
-    }
   }
 }
 
 interface AdminAuthedRouteChildren {
   AdminAuthedUsersRoute: typeof AdminAuthedUsersRoute
   AdminAuthedIndexRoute: typeof AdminAuthedIndexRoute
-  AdminAuthedBooksEditRoute: typeof AdminAuthedBooksEditRoute
-  AdminAuthedBooksNewRoute: typeof AdminAuthedBooksNewRoute
   AdminAuthedDevApiDocsRoute: typeof AdminAuthedDevApiDocsRoute
   AdminAuthedDevArchitectureRoute: typeof AdminAuthedDevArchitectureRoute
   AdminAuthedDevErdRoute: typeof AdminAuthedDevErdRoute
   AdminAuthedDevServerOpsRoute: typeof AdminAuthedDevServerOpsRoute
   AdminAuthedDevTablesRoute: typeof AdminAuthedDevTablesRoute
-  AdminAuthedBooksIndexRoute: typeof AdminAuthedBooksIndexRoute
 }
 
 const AdminAuthedRouteChildren: AdminAuthedRouteChildren = {
   AdminAuthedUsersRoute: AdminAuthedUsersRoute,
   AdminAuthedIndexRoute: AdminAuthedIndexRoute,
-  AdminAuthedBooksEditRoute: AdminAuthedBooksEditRoute,
-  AdminAuthedBooksNewRoute: AdminAuthedBooksNewRoute,
   AdminAuthedDevApiDocsRoute: AdminAuthedDevApiDocsRoute,
   AdminAuthedDevArchitectureRoute: AdminAuthedDevArchitectureRoute,
   AdminAuthedDevErdRoute: AdminAuthedDevErdRoute,
   AdminAuthedDevServerOpsRoute: AdminAuthedDevServerOpsRoute,
   AdminAuthedDevTablesRoute: AdminAuthedDevTablesRoute,
-  AdminAuthedBooksIndexRoute: AdminAuthedBooksIndexRoute,
 }
 
 const AdminAuthedRouteWithChildren = AdminAuthedRoute._addFileChildren(
@@ -498,11 +415,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ChatRoute: ChatRoute,
   HomeRoute: HomeRoute,
-  LoginRoute: LoginRoute,
   MapRoute: MapRoute,
+  OcrRoute: OcrRoute,
   RecommendRoute: RecommendRoute,
-  RobotRoute: RobotRoute,
-  RobotLocationRoute: RobotLocationRoute,
+  ScanRoute: ScanRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   AdminAuthedRoute: AdminAuthedRouteWithChildren,

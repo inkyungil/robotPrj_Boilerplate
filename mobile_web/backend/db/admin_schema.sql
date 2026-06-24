@@ -1,4 +1,4 @@
--- admin_users: admin accounts for the RobotChatAI admin area.
+-- cb_admin_users: admin accounts for the RobotChatAI admin area.
 -- Run against the existing `labi` database. The backend's seed_admin.py
 -- also creates this table via SQLAlchemy; this file is for manual setup.
 --
@@ -7,7 +7,7 @@
 
 USE labi;
 
-CREATE TABLE IF NOT EXISTS admin_users (
+CREATE TABLE IF NOT EXISTS cb_admin_users (
   id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT            COMMENT '기본키',
   username        VARCHAR(64)  NOT NULL                              COMMENT '로그인 아이디 (고유)',
   email           VARCHAR(255) NULL                                 COMMENT '이메일 (고유, 선택)',
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS admin_users (
   updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
                     ON UPDATE CURRENT_TIMESTAMP                     COMMENT '수정 시각 (자동 갱신)',
   PRIMARY KEY (id),
-  UNIQUE KEY uq_admin_users_username (username),
-  UNIQUE KEY uq_admin_users_email (email)
+  UNIQUE KEY uq_cb_admin_users_username (username),
+  UNIQUE KEY uq_cb_admin_users_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='관리자 계정: 로그인 및 관리자 목록 CRUD 대상';

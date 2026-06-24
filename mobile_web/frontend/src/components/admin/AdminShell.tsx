@@ -47,7 +47,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/admin", label: "대시보드", icon: LayoutDashboard, exact: true },
       { to: "/admin/users", label: "관리자 목록", icon: Users },
-      { to: "/admin/books", label: "도서 목록", icon: BookOpen },
     ],
   },
   {
@@ -105,7 +104,7 @@ export function AdminShell({
       <header className="flex h-[60px] shrink-0 items-stretch border-b border-slate-200/70 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.05)]">
         <div className="hidden w-[240px] shrink-0 items-center gap-2.5 border-r border-slate-200/70 bg-[#F8F9FB] px-4 md:flex">
           <Bot className="h-6 w-6 shrink-0 text-orange-500" />
-          <span className="truncate text-[14px] font-bold text-slate-800">Libi Admin</span>
+          <span className="truncate text-[14px] font-bold text-slate-800">Labi Admin</span>
         </div>
         <div className="flex flex-1 items-center justify-between gap-3 px-3 md:px-4">
           <div className="flex min-w-0 items-center gap-2 md:gap-3">

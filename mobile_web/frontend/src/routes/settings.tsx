@@ -1,7 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
-import { useI18n } from "@/lib/i18n";
-import { Bot, RefreshCw, QrCode, X, ExternalLink, User } from "lucide-react";
+import { LANGS, useI18n, type Lang } from "@/lib/i18n";
+import {
+  Bot,
+  Languages,
+  RefreshCw,
+  QrCode,
+  X,
+  ExternalLink,
+  ScanLine,
+  ScanText,
+  ChevronRight,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -18,39 +28,23 @@ const OLLAMA_MODEL_KEY = "labi.ollamaModel";
 const DEFAULT_OLLAMA_MODEL = import.meta.env.VITE_OLLAMA_MODEL ?? "qwen3:1.7b";
 
 export const Route = createFileRoute("/settings")({
-  head: () => ({ meta: [{ title: "Libi Bot — 설정" }] }),
+  head: () => ({ meta: [{ title: "Labi Bot — 설정" }] }),
   component: Settings,
 });
 
 function Settings() {
-  const { lang, tr } = useI18n();
+  const { lang, setLang, tr } = useI18n();
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [selectedModel, setSelectedModel] = useState(DEFAULT_OLLAMA_MODEL);
   const [modelLoading, setModelLoading] = useState(false);
   const [modelError, setModelError] = useState<string | null>(null);
   const [qrOpen, setQrOpen] = useState(false);
-  const [member, setMember] = useState<{ id: number; username: string; full_name?: string } | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem(OLLAMA_MODEL_KEY);
     if (saved) setSelectedModel(saved);
     void loadModels(saved || DEFAULT_OLLAMA_MODEL);
-
-    const info = localStorage.getItem("libi.memberInfo");
-    if (info) {
-      try {
-        setMember(JSON.parse(info));
-      } catch (e) {
-        localStorage.removeItem("libi.memberInfo");
-      }
-    }
   }, []);
-
-  function handleLogout() {
-    localStorage.removeItem("libi.memberToken");
-    localStorage.removeItem("libi.memberInfo");
-    setMember(null);
-  }
 
   async function loadModels(currentModel: string) {
     setModelLoading(true);
@@ -85,51 +79,6 @@ function Settings() {
     <AppShell>
       <div className="px-5 pb-8 pt-3">
         <h1 className="text-xl font-bold text-foreground">{tr("settings")}</h1>
-
-        <Section title="모바일 로봇 서비스" icon={Bot}>
-          {member ? (
-            <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="size-8 rounded-full bg-primary-soft flex items-center justify-center text-primary">
-                    <User className="size-4" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold text-foreground">{member.full_name || member.username}님</div>
-                    <div className="text-[10px] text-muted-foreground font-mono">ID: {member.username}</div>
-                  </div>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="rounded-lg border border-border px-2 py-0.5 text-[11px] font-semibold text-muted-foreground hover:text-red-500 hover:border-red-200 transition-colors"
-                >
-                  로그아웃
-                </button>
-              </div>
-              <Link
-                to="/robot"
-                className="inline-flex w-full h-10 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-primary to-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:from-primary/95 hover:to-indigo-500 transition-all"
-              >
-                <Bot className="size-3.5 animate-bounce" />
-                로봇 호출 모니터 바로가기
-              </Link>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-border bg-card p-4 text-center">
-              <p className="text-xs text-muted-foreground mb-3">
-                로그인하시면 모바일로 도서관 로봇을 호출하여 책을 전달받을 수 있습니다.
-              </p>
-              <button
-                onClick={() => {
-                  window.location.href = "/login?redirect=/settings";
-                }}
-                className="inline-flex w-full h-10 items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-primary/90 transition-colors cursor-pointer"
-              >
-                로그인 / 회원가입
-              </button>
-            </div>
-          )}
-        </Section>
 
         <Section title="AI 모델 선택" icon={Bot}>
           <div className="mb-2 flex items-center justify-between">
@@ -187,6 +136,58 @@ function Settings() {
           ) : null}
         </Section>
 
+        <Section title="스캔 / 인식 도구" icon={ScanLine}>
+          <Link
+            to="/scan"
+            className="flex items-center gap-3 rounded-xl border-2 border-border bg-card p-3 text-left transition-colors hover:border-primary"
+          >
+            <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary-soft text-primary">
+              <ScanLine className="size-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-foreground">바코드 · QR 카메라</span>
+              <span className="block text-[11px] text-muted-foreground">
+                카메라로 QR·바코드를 인식해 텍스트로 변환
+              </span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+          </Link>
+
+          <Link
+            to="/ocr"
+            className="flex items-center gap-3 rounded-xl border-2 border-border bg-card p-3 text-left transition-colors hover:border-primary"
+          >
+            <span className="inline-flex size-10 items-center justify-center rounded-xl bg-primary-soft text-primary">
+              <ScanText className="size-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-foreground">OCR 텍스트 인식</span>
+              <span className="block text-[11px] text-muted-foreground">
+                이미지 속 한국어·영어 문자를 추출해 화면에 출력
+              </span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+          </Link>
+        </Section>
+
+        <Section title={tr("chooseLang")} icon={Languages}>
+          <div className="grid grid-cols-2 gap-2">
+            {LANGS.map((l) => (
+              <button
+                key={l.code}
+                onClick={() => setLang(l.code as Lang)}
+                className={`rounded-xl border-2 p-3 text-left text-sm font-semibold transition-colors ${
+                  lang === l.code
+                    ? "border-primary bg-primary-soft text-primary"
+                    : "border-border bg-card text-foreground"
+                }`}
+              >
+                <div className="font-mono text-[10px] text-muted-foreground">{l.code}</div>
+                {l.native}
+              </button>
+            ))}
+          </div>
+        </Section>
 
         <Section title="공유 / QR 코드" icon={QrCode}>
           <button
@@ -200,7 +201,7 @@ function Settings() {
         </Section>
 
         <p className="mt-8 text-center text-[11px] text-muted-foreground">
-          Libi Bot v0.1 · made with 📚 by Lovable
+          Labi Bot v0.1 · made with 📚 by Lovable
         </p>
       </div>
 

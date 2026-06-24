@@ -13,7 +13,7 @@ import type { ComponentType } from "react";
 import { AdminShell } from "@/components/admin/AdminShell";
 
 export const Route = createFileRoute("/admin/_authed/dev/architecture")({
-  head: () => ({ meta: [{ title: "Libi Admin — 아키텍처" }] }),
+  head: () => ({ meta: [{ title: "Labi Admin — 아키텍처" }] }),
   component: ArchitecturePage,
 });
 
@@ -137,7 +137,7 @@ function ArchitecturePage() {
             title="MariaDB — labi"
             subtitle=":3306"
             tone="green"
-            items={["admin_users", "conversations", "messages", "ai_model_settings"]}
+            items={["cb_admin_users", "cb_conversations", "cb_messages", "cb_ai_model_settings"]}
           />
         </div>
 

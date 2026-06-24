@@ -35,7 +35,7 @@ import {
 import { adminApi, type DayCount } from "@/lib/admin-api";
 
 export const Route = createFileRoute("/admin/_authed/")({
-  head: () => ({ meta: [{ title: "Libi Admin — 대시보드" }] }),
+  head: () => ({ meta: [{ title: "Labi Admin — 대시보드" }] }),
   component: DashboardPage,
 });
 

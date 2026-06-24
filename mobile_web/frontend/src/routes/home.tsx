@@ -3,13 +3,12 @@ import { AppShell } from "@/components/AppShell";
 import { LANGS, useI18n } from "@/lib/i18n";
 import { useSpeechRecognition, useSpeechSupported } from "@/lib/use-speech";
 import { useEffect } from "react";
-import { Mic, BookMarked, Map, Coffee, Sparkles, TrendingUp, Bot } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { Book } from "@/lib/mock-data";
+import { Mic, BookMarked, Map, Coffee, Sparkles, TrendingUp } from "lucide-react";
+import { BOOKS } from "@/lib/mock-data";
 import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/home")({
-  head: () => ({ meta: [{ title: "Libi Bot — 홈" }] }),
+  head: () => ({ meta: [{ title: "Labi Bot — 홈" }] }),
   component: Home,
 });
 
@@ -28,17 +27,7 @@ function Home() {
     }
   }, [listening, transcript, navigate]);
 
-  const { data: books = [] } = useQuery<Book[]>({
-    queryKey: ["books"],
-    queryFn: async () => {
-      const res = await fetch("/api/books");
-      if (!res.ok) throw new Error("Failed to fetch books");
-      return res.json();
-    },
-  });
-
-  const newest = books.slice(0, 3);
-
+  const newest = BOOKS.slice(0, 3);
 
   return (
     <AppShell>
@@ -131,30 +120,6 @@ function Home() {
               className="rounded-full bg-primary px-4 py-2 text-xs font-bold text-primary-foreground"
             >
               열기
-            </Link>
-          </div>
-        </section>
-
-        {/* Real-time Robot Position Control Banner */}
-        <section className="mt-4 rounded-2xl border border-border bg-card p-4 shadow-card relative overflow-hidden">
-          <div className="absolute -right-6 -top-6 size-24 bg-primary/5 rounded-full blur-xl animate-pulse" />
-          <div className="flex items-center gap-3 relative z-10">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-accent text-accent-foreground relative">
-              <span className="absolute -right-0.5 -top-0.5 flex size-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full size-2.5 bg-emerald-500"></span>
-              </span>
-              <Bot className="size-5" />
-            </div>
-            <div className="flex-1">
-              <div className="text-sm font-bold text-foreground">🤖 실시간 로봇 관제</div>
-              <div className="text-xs text-muted-foreground">도서 배달 로봇의 이동 동선과 현재 위치 실시간 모니터링</div>
-            </div>
-            <Link
-              to="/robot-location"
-              className="rounded-full bg-accent px-4 py-2 text-xs font-bold text-accent-foreground hover:opacity-90 active:scale-95 cursor-pointer"
-            >
-              관제실
             </Link>
           </div>
         </section>

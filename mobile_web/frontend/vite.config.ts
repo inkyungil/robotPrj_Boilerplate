@@ -26,6 +26,7 @@ export default defineConfig({
       "/api": {
         target: "http://127.0.0.1:8010",
         changeOrigin: true,
+        ws: true,
       },
       // The Ollama API is the one exception — it keeps its own `/ollama` prefix.
       "/ollama": {
