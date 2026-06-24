@@ -45,10 +45,12 @@ def create_app() -> FastAPI:
     )
 
     # 공통 라우터 (타입 무관)
-    from app.routers import camera, common
+    from app.routers import admin, camera, common, pinky_detect
 
     app.include_router(common.router, tags=["common"])
     app.include_router(camera.router, prefix="/camera", tags=["camera"])
+    app.include_router(admin.router, tags=["admin"])
+    app.include_router(pinky_detect.router, tags=["pinky-detect"])
 
     # 타입별 라우터 (활성 타입만 노출)
     if settings.robot_type is RobotType.arm:
