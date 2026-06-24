@@ -240,11 +240,7 @@ async def cached_ir_result() -> dict:
     return await _run(f"sudo -n python3 {_SENSOR_SCRIPT} ir", timeout=8)
 
 
-        try:
-            await ws.send_text(payload)
-        except Exception:
-            dead.add(ws)
-    _map_clients.difference_update(dead)
+
 
 
 async def _exploration_loop() -> None:
