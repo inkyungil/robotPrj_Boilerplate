@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 9001
     ros_node_name: str = "robot_agent"
+    camera_color_swap: str = "none"  # "none", "rgb_bgr", "yuv_uv"
 
 
 settings = Settings()

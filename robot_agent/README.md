@@ -224,7 +224,7 @@ robot_agent/
 
 ### 1. .env 설정
 
-PC 타입에 맞게 `.env` 파일의 `ROBOT_TYPE`을 설정한다.
+PC 타입에 맞게 `.env` 파일의 `ROBOT_TYPE`을 설정합니다. 또한 카메라 왜곡/색상 보정이 필요한 경우 `CAMERA_COLOR_SWAP` 설정을 추가할 수 있습니다.
 
 ```bash
 # arm PC (JetCobot)
@@ -232,6 +232,12 @@ ROBOT_TYPE=arm
 
 # driving PC (Pinky)
 ROBOT_TYPE=driving
+
+# 카메라 색상 보정 설정 (기본값 none)
+# - none: 기본 출력
+# - rgb_bgr: 적색(Red)과 청색(Blue) 채널이 서로 바뀌어 나올 때 사용
+# - yuv_uv: 청색(Blue)이 황색(Yellow) 등으로 완전히 왜곡되어 나올 때 사용 (U/V 채널 스왑)
+CAMERA_COLOR_SWAP=none
 ```
 
 ### 2. 서버 시작

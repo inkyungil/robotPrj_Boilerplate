@@ -95,6 +95,17 @@ class CameraManager:
             "avg_rgb": [round(float(v), 2) for v in avg_rgb],
         }
 
+    def _apply_color_swap(self, frame_bgr: np.ndarray) -> np.ndarray:
+        from app.config import settings
+        mode = getattr(settings, "camera_color_swap", "none").lower()
+        if mode == "rgb_bgr":
+            return cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+        elif mode == "yuv_uv":
+            yuv = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2YUV)
+            yuv[:, :, [1, 2]] = yuv[:, :, [2, 1]]
+            return cv2.cvtColor(yuv, cv2.COLOR_YUV2BGR)
+        return frame_bgr
+
     def _loop(self) -> None:
         if not _PICAMERA2_AVAILABLE:
             self._error = "picamera2 라이브러리가 없습니다"
@@ -127,6 +138,7 @@ class CameraManager:
 
                 # picamera2는 RGB888 → OpenCV BGR 변환
                 frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_BGR2RGB)
+                frame_bgr = self._apply_color_swap(frame_bgr)
 
                 analysis = self._analyze_frame(frame_bgr)
                 ok, buf = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])

@@ -177,7 +177,19 @@ class CameraManager:
             self._cap = None
             self._running = False
 
+    def _apply_color_swap(self, frame_bgr: np.ndarray) -> np.ndarray:
+        import os
+        mode = os.getenv("CAMERA_COLOR_SWAP", "none").lower()
+        if mode == "rgb_bgr":
+            return cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+        elif mode == "yuv_uv":
+            yuv = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2YUV)
+            yuv[:, :, [1, 2]] = yuv[:, :, [2, 1]]
+            return cv2.cvtColor(yuv, cv2.COLOR_YUV2BGR)
+        return frame_bgr
+
     def _push_frame(self, frame_bgr: np.ndarray) -> None:
+        frame_bgr = self._apply_color_swap(frame_bgr)
         analysis = self._analyze_frame(frame_bgr)
         ok, buf = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])
         if not ok:
