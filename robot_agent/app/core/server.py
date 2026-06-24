@@ -55,10 +55,17 @@ def create_app() -> FastAPI:
 
     if settings.robot_type is RobotType.arm:
         from app.routers import arm
+        # /api/arm 경로 지원 (api 라우터의 /api prefix + /arm)
         api.include_router(arm.router, prefix="/arm", tags=["arm"])
+        # /arm 경로 지원 (app에 직접 등록)
+        app.include_router(arm.router, prefix="/arm", tags=["arm"])
     elif settings.robot_type is RobotType.driving:
         from app.routers import driving
-        api.include_router(driving.router, prefix="/driving", tags=["driving"])
+        # /driving 경로 지원 (app에 직접 등록)
+        app.include_router(driving.router, prefix="/driving", tags=["driving"])
+        # /api/admin/robot 경로 지원 (api 라우터의 /api prefix + /admin/robot)
+        api.include_router(driving.router, prefix="/admin/robot", tags=["driving-legacy"])
 
     app.include_router(api)
+
     return app
