@@ -5,7 +5,6 @@ from pydantic import BaseModel
 
 from app.core.bridge import bridge
 from app.drivers.arm_driver import ArmDriver
-from app.schemas.arm import GripperRequest, JogRequest
 
 router = APIRouter()
 
@@ -62,32 +61,3 @@ def jog_stop():
     """조그 이동 즉시 정지"""
     return _driver().jog_stop()
 
-
-# ── 특정 카메라/얼굴 추적 뷰 포지션 이동 (프리셋) ──────────────────────────────────
-
-@router.post("/face-view")
-def face_view():
-    """얼굴 추적 뷰 포지션으로 이동"""
-    FACE_VIEW_ANGLES = [0.0, 0.0, -90.0, 90.0, 0.0, 0.0]
-    return _driver().send_angles(FACE_VIEW_ANGLES, 40)
-
-
-@router.post("/camera-view")
-def camera_view():
-    """기본 카메라 뷰 포지션으로 이동"""
-    CAMERA_VIEW_ANGLES = [2.3, -1.7, -15.8, -66.7, -1.2, -3.6]
-    return _driver().send_angles(CAMERA_VIEW_ANGLES, 40)
-
-
-# ── 볼트 조작용 조그 및 단일 제어 (에이전트 고유 API 유지) ──────────────────────────
-
-@router.post("/jog")
-def jog(req: JogRequest):
-    """단일 관절 조그 이동"""
-    return _driver().jog(req.joint, req.delta)
-
-
-@router.post("/gripper-legacy")
-def set_gripper_legacy(req: GripperRequest):
-    """기존 position (0.0~1.0) 기반 그리퍼 제어 지원"""
-    return _driver().set_gripper(req.position)

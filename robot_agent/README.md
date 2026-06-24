@@ -146,10 +146,6 @@ bash stop.sh
 | POST | `/arm/stop` | 로봇팔 긴급 정지 |
 | POST | `/arm/home` | 홈 포지션 복귀 및 그리퍼 완전 오픈 |
 | POST | `/arm/jog-stop` | 조그 및 수동 조작 즉시 정지 |
-| POST | `/arm/face-view` | 얼굴 추적 뷰 포지션으로 이동 |
-| POST | `/arm/camera-view` | 카메라 작업공간 뷰 포지션으로 이동 |
-| POST | `/arm/jog` | 단일 관절 조그 이동 |
-| POST | `/arm/gripper-legacy` | 0.0~1.0 비율 기반 그리퍼 제어 |
 
 ### 4. 주행 로봇 전용 API (Driving PC - `ROBOT_TYPE=driving`)
 모든 API는 `/driving/...` 경로와 `/api/admin/robot/...` 경로(레거시/관제 서버)를 병행 지원합니다.
