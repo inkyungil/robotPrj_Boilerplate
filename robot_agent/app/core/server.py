@@ -44,22 +44,21 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # 공통 라우터 (타입 무관)
+    from fastapi import APIRouter
     from app.routers import admin, camera, common, pinky_detect
 
-    app.include_router(common.router, tags=["common"])
-    app.include_router(camera.router, prefix="/camera", tags=["camera"])
-    app.include_router(admin.router, tags=["admin"])
-    app.include_router(pinky_detect.router, tags=["pinky-detect"])
+    api = APIRouter(prefix="/api")
+    api.include_router(common.router, tags=["common"])
+    api.include_router(camera.router, prefix="/camera", tags=["camera"])
+    api.include_router(admin.router, tags=["admin"])
+    api.include_router(pinky_detect.router, tags=["pinky-detect"])
 
-    # 타입별 라우터 (활성 타입만 노출)
     if settings.robot_type is RobotType.arm:
         from app.routers import arm
-
-        app.include_router(arm.router, prefix="/arm", tags=["arm"])
+        api.include_router(arm.router, prefix="/arm", tags=["arm"])
     elif settings.robot_type is RobotType.driving:
         from app.routers import driving
+        api.include_router(driving.router, prefix="/driving", tags=["driving"])
 
-        app.include_router(driving.router, prefix="/driving", tags=["driving"])
-
+    app.include_router(api)
     return app

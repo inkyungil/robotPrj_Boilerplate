@@ -1,5 +1,5 @@
+from typing import Any, List
 from pydantic import BaseModel, Field
-from typing import List
 
 
 class JogRequest(BaseModel):
@@ -14,3 +14,18 @@ class GripperRequest(BaseModel):
 class JointState(BaseModel):
     joints: List[float] = Field(..., description="6축 관절 각도 (degree)")
     gripper: float = Field(..., description="그리퍼 위치")
+
+
+class ConfidenceRequest(BaseModel):
+    confidence: float = Field(..., ge=0.1, le=0.95)
+
+
+class PinkyStatus(BaseModel):
+    available: bool
+    loaded: bool
+    model_path: str
+    dataset_path: str
+    classes: List[str]
+    confidence: float
+    error: str | None
+    last_result: Any | None

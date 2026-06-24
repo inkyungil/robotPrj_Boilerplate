@@ -4,7 +4,7 @@ from fastapi import APIRouter
 
 FONTS_DIR = Path("/home/bot_ai_server/backend/app/hardware/uploads/fonts")
 
-router = APIRouter(prefix="/api/admin/robot")
+router = APIRouter(prefix="/admin/robot")
 
 
 @router.get("/lcd/fonts")
