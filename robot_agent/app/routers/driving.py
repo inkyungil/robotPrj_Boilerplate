@@ -42,20 +42,7 @@ _FONTS_DIR.mkdir(parents=True, exist_ok=True)
 
 MAX_SPEED = 75  # 최대 모터 속도 %
 
-_explore_task: asyncio.Task | None = None
-_explore_status: str = "idle"
-_explore_log: list[str] = []
 
-# ── Occupancy-grid / 맵 상태 ─────────────────────────────────────────────────
-_map_clients: set[WebSocket] = set()
-_map_grid: dict[tuple[int, int], int] = {}   # 격자 셀(ix, iy) → 장애물 감지 횟수
-_path_history: list[tuple[float, float]] = []
-_robot_pose: dict[str, float] = {"x": 0.0, "y": 0.0, "heading": 0.0}
-
-# Dead-reckoning 파라미터 (경험치 기반 — 실제 로봇에서 보정 필요)
-_CELL_CM   = 10.0    # cm per grid cell
-_FWD_CELL_S = 1.4    # 전진 시 cells/s (FWD=42% 기준)
-_TURN_DEG_S = 75.0   # 회전 시 deg/s  (TURN=46% 기준)
 
 # 주행 모터 데몬(상주 프로세스) — 명령마다 sudo python3 를 띄우지 않고 재사용한다.
 _motor_proc: asyncio.subprocess.Process | None = None
@@ -253,34 +240,6 @@ async def cached_ir_result() -> dict:
     return await _run(f"sudo -n python3 {_SENSOR_SCRIPT} ir", timeout=8)
 
 
-def _log(msg: str) -> None:
-    global _explore_log
-    _explore_log.append(msg)
-    if len(_explore_log) > 60:
-        _explore_log = _explore_log[-60:]
-
-
-def _reset_map() -> None:
-    global _map_grid, _path_history, _robot_pose
-    _map_grid.clear()
-    _path_history.clear()
-    _robot_pose = {"x": 0.0, "y": 0.0, "heading": 0.0}
-
-
-async def _broadcast_map(dist: float | None, state: str) -> None:
-    global _map_clients
-    if not _map_clients:
-        return
-    payload = json.dumps({
-        "type": "map",
-        "robot": _robot_pose,
-        "obstacles": list(_map_grid.keys()),
-        "path": _path_history[-400:],
-        "state": state,
-        "dist": dist,
-    })
-    dead: set[WebSocket] = set()
-    for ws in list(_map_clients):
         try:
             await ws.send_text(payload)
         except Exception:
@@ -398,24 +357,7 @@ def _unique_upload_path(filename: str) -> Path:
     return _IMAGES_DIR / f"{stem}_{token}{suffix}"
 
 
-def _get_explore_state() -> dict:
-    from app.core import ros_bridge, explorer
-    if ros_bridge.is_active():
-        st = explorer.get_state()
-        return {
-            "running": st["running"],
-            "status": st["status"],
-            "log": [st["message"]] if st["message"] else [],
-            "message": st["message"],
-        }
-    else:
-        running = _explore_task is not None and not _explore_task.done()
-        return {
-            "running": running,
-            "status": _explore_status if running else "idle",
-            "log": _explore_log[-25:],
-            "message": _explore_log[-1] if _explore_log else "",
-        }
+
 
 
 # ── 주행 / 회전 API ───────────────────────────────────────────────────
@@ -465,119 +407,7 @@ async def drive_ws(websocket: WebSocket):
             await _motor_close()
 
 
-@router.websocket("/ws/explore")
-async def ws_explore(websocket: WebSocket):
-    """실시간 SLAM 지도 및 상태 스트림"""
-    await websocket.accept()
-    _map_clients.add(websocket)
-    
-    from app.core import ros_bridge, explorer
-    
-    async def _stream():
-        last_map_hash = None
-        while True:
-            try:
-                if ros_bridge.is_active():
-                    map_data = ros_bridge.get_topic("map")
-                    if map_data:
-                        h = hash(tuple(map_data["data"][:100]))
-                        if h != last_map_hash:
-                            last_map_hash = h
-                            await websocket.send_json({"type": "map", **map_data})
 
-                    odom = ros_bridge.get_topic("odom")
-                    if odom:
-                        await websocket.send_json({"type": "odom", **odom})
-
-                    await websocket.send_json({"type": "explore", **explorer.get_state()})
-                else:
-                    await websocket.send_json({
-                        "type": "map",
-                        "robot": _robot_pose,
-                        "obstacles": list(_map_grid.keys()),
-                        "path": _path_history[-400:],
-                        "state": _explore_status,
-                        "dist": None,
-                    })
-            except Exception:
-                return
-            await asyncio.sleep(0.2)
-
-    async def _recv():
-        global _explore_task
-        try:
-            while True:
-                data = await websocket.receive_text()
-                try:
-                    msg = json.loads(data)
-                    cmd = msg.get("cmd")
-                    if cmd == "start":
-                        if ros_bridge.is_active():
-                            explorer.start()
-                        else:
-                            if not (_explore_task and not _explore_task.done()):
-                                _reset_map()
-                                _explore_task = asyncio.create_task(_exploration_loop())
-                    elif cmd == "stop":
-                        if ros_bridge.is_active():
-                            explorer.stop()
-                        else:
-                            if _explore_task and not _explore_task.done():
-                                _explore_task.cancel()
-                except Exception:
-                    pass
-        except Exception:
-            return
-
-    stream_task = asyncio.create_task(_stream())
-    recv_task = asyncio.create_task(_recv())
-    try:
-        await asyncio.wait({stream_task, recv_task}, return_when=asyncio.FIRST_COMPLETED)
-    finally:
-        stream_task.cancel()
-        recv_task.cancel()
-        _map_clients.discard(websocket)
-
-
-# ── 자율탐색 시작 / 중지 ──────────────────────────────────────────────
-
-@router.post("/explore/start")
-async def explore_start():
-    from app.core import ros_bridge, explorer
-    if ros_bridge.is_active():
-        ok = explorer.start()
-        return {"ok": ok, **_get_explore_state()}
-    else:
-        global _explore_task
-        if _explore_task and not _explore_task.done():
-            return {"ok": False, "error": "이미 탐색 중입니다", **_get_explore_state()}
-        _reset_map()
-        _explore_task = asyncio.create_task(_exploration_loop())
-        return {"ok": True, **_get_explore_state()}
-
-
-@router.post("/explore/stop")
-async def explore_stop():
-    from app.core import ros_bridge, explorer
-    if ros_bridge.is_active():
-        explorer.stop()
-        return {"ok": True, **_get_explore_state()}
-    else:
-        global _explore_task
-        if _explore_task and not _explore_task.done():
-            _explore_task.cancel()
-            try:
-                await asyncio.wait_for(asyncio.shield(_explore_task), timeout=3)
-            except (asyncio.CancelledError, asyncio.TimeoutError):
-                pass
-        global _explore_status
-        _explore_status = "idle"
-        return {"ok": True, **_get_explore_state()}
-
-
-@router.get("/explore/status")
-async def get_explore_status():
-    return _get_explore_state()
 
 
 # ── 프로세스 관리 ────────────────────────────────────────────────────
@@ -716,99 +546,7 @@ async def process_log(name: ProcessName, lines: int = 100):
     return {"log": "\n".join(content[-lines:])}
 
 
-# ── 지도 관리 ────────────────────────────────────────────────────────
 
-class MapSaveIn(BaseModel):
-    name: str = ""
-
-@router.post("/map/save", summary="현재 SLAM 지도 저장")
-async def save_map(body: MapSaveIn = MapSaveIn()):
-    MAP_DIR.mkdir(parents=True, exist_ok=True)
-    name = _safe_name(body.name) if body.name else datetime.datetime.now().strftime("map_%Y%m%d_%H%M%S")
-    out_path = MAP_DIR / name
-    ust = _detect_use_sim_time()
-    r = _run_ros(
-        f"ros2 run nav2_map_server map_saver_cli -f {out_path} "
-        f"--ros-args -p use_sim_time:={ust} -p save_map_timeout:=10.0",
-        timeout=45,
-    )
-    yaml_exists = (MAP_DIR / f"{name}.yaml").exists()
-    if r["returncode"] == 0 or yaml_exists:
-        return {"ok": True, "name": name, "yaml_exists": yaml_exists}
-    full = r["stderr"] or r["stdout"]
-    error_lines = [l for l in full.splitlines() if "[ERROR]" in l or "Failed" in l]
-    msg = "\n".join(error_lines) if error_lines else full[-300:]
-    return {"ok": False, "error": msg}
-
-
-@router.post("/map/reset", summary="현재 SLAM 맵 초기화")
-async def reset_map():
-    from app.core import ros_bridge
-    ros_bridge.clear_map()
-    was_running = _proc_status("slam")["running"]
-    if not was_running:
-        return {"ok": True, "restarted": False, "note": "맵 캐시를 비웠습니다. SLAM은 실행 중이 아닙니다."}
-
-    _kill_proc("slam")
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-    lf = _log_path("slam").open("ab")
-    proc = subprocess.Popen(
-        _build_command("slam"), cwd=str(PROJECT_ROOT),
-        stdout=lf, stderr=subprocess.STDOUT, start_new_session=True,
-    )
-    _processes["slam"] = proc
-    return {"ok": True, "restarted": True, **_proc_status("slam")}
-
-
-@router.get("/map/list", summary="저장된 지도 목록")
-async def map_list():
-    if not MAP_DIR.exists():
-        return {"maps": []}
-    maps = []
-    for yaml_path in sorted(MAP_DIR.glob("*.yaml"), key=lambda p: p.stat().st_mtime, reverse=True):
-        pgm_path = yaml_path.with_suffix(".pgm")
-        stat = yaml_path.stat()
-        maps.append({
-            "name": yaml_path.stem,
-            "yaml": str(yaml_path),
-            "pgm": str(pgm_path) if pgm_path.exists() else None,
-            "mtime": stat.st_mtime,
-            "size_kb": round(stat.st_size / 1024, 1),
-        })
-    return {"maps": maps}
-
-
-@router.get("/map/{name}/download", summary="저장된 지도 다운로드")
-async def download_map(name: str):
-    name = _safe_name(name)
-    yaml_path = MAP_DIR / f"{name}.yaml"
-    pgm_path = MAP_DIR / f"{name}.pgm"
-    if not yaml_path.exists() and not pgm_path.exists():
-        raise HTTPException(status_code=404, detail=f"지도를 찾을 수 없습니다: {name}")
-
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for p in (yaml_path, pgm_path):
-            if p.exists():
-                zf.write(p, arcname=p.name)
-    buf.seek(0)
-    return Response(
-        content=buf.getvalue(),
-        media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{name}.zip"'},
-    )
-
-
-@router.delete("/map/{name}", summary="저장된 지도 삭제")
-async def delete_map(name: str):
-    name = _safe_name(name)
-    deleted = []
-    for ext in (".yaml", ".pgm"):
-        p = MAP_DIR / f"{name}{ext}"
-        if p.exists():
-            p.unlink()
-            deleted.append(str(p))
-    return {"ok": True, "deleted": deleted}
 
 
 class TargetModeReq(BaseModel):

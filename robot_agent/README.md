@@ -155,19 +155,10 @@ bash stop.sh
 | POST | `/driving/move` | 직선 주행 제어 |
 | POST | `/driving/rotate` | 제자리 회전 제어 |
 | WS | `/driving/ws/drive` | 실시간 조이스틱 주행 WebSocket 제어 |
-| WS | `/driving/ws/explore` | SLAM 지도/오도메트리 스트림 WebSocket |
-| POST | `/driving/explore/start` | 자율 탐색 시작 (ROS SLAM 혹은 센서 장애물 회피 폴백) |
-| POST | `/driving/explore/stop` | 자율 탐색 중지 |
-| GET | `/driving/explore/status` | 자율 탐색 진행 상황 및 로그 조회 |
 | GET | `/driving/status` | ROS 도메인 상태 및 실행 프로세스(SLAM/Nav2 등) 목록 조회 |
 | POST | `/driving/process/{name}/start`| SLAM/Nav2/Teleop 프로세스 구동 (name: teleop/obstacle_avoid/slam/nav2) |
 | POST | `/driving/process/{name}/stop` | 프로세스 중단 |
 | GET | `/driving/process/{name}/log` | 프로세스 구동 로그 조회 |
-| POST | `/driving/map/save` | 현재 SLAM 지도 YAML/PGM 파일로 로컬 저장 |
-| POST | `/driving/map/reset` | SLAM 초기화 및 맵 캐시 제거 |
-| GET | `/driving/map/list` | 저장된 지도 리스트 조회 |
-| GET | `/driving/map/{name}/download` | 특정 지도 파일 압축 ZIP 다운로드 |
-| DELETE| `/driving/map/{name}` | 특정 지도 파일 삭제 |
 | GET | `/driving/drive/target` | 현재 제어 타겟(real 모드) 조회 |
 | POST | `/driving/drive/target` | 제어 타겟 설정 |
 | POST | `/driving/lcd/emotion` | LCD 전면 패널 표정 표현 |
