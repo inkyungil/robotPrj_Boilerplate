@@ -26,4 +26,19 @@ pip install -q -r "$SCRIPT_DIR/requirements-driving.txt"
 echo "robot_agent 시작..."
 nohup python3 "$SCRIPT_DIR/main.py" > "$LOG_FILE" 2>&1 &
 echo $! > "$PID_FILE"
-echo "실행됨 (PID: $!, 로그: $LOG_FILE)"
+
+sleep 2
+
+PORT=$(grep -E '^PORT=' "$SCRIPT_DIR/.env" | cut -d= -f2)
+PORT=${PORT:-9001}
+
+echo ""
+echo "=============================="
+echo " robot_agent 실행됨"
+echo " PID  : $!"
+echo " 로그  : $LOG_FILE"
+echo "------------------------------"
+hostname -I | tr ' ' '\n' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | while read -r IP; do
+    echo " http://$IP:$PORT"
+done
+echo "=============================="
