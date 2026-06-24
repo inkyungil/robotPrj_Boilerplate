@@ -41,8 +41,7 @@ robot_agent/
     │   ├── server.py           #   create_app() + lifespan(드라이버/rclpy/ros_bridge 기동)
     │   ├── bridge.py           #   API ↔ 드라이버/ROS 공유상태 (스레드 안전, 활성 드라이버 보관)
     │   ├── ros_node.py         #   rclpy 노드 라이프사이클 관리 래퍼
-    │   ├── ros_bridge.py       #   odom/map/scan 등 ROS2 토픽 송수신 및 캐싱 브릿지
-    │   └── explorer.py         #   자율 탐색(Frontier Exploration) 주행 제어 엔진
+    │   └── ros_bridge.py       #   odom/map/scan 등 ROS2 토픽 송수신 및 캐싱 브릿지
     ├── drivers/                # ── ★ 여기만 타입별로 다름 ──
     │   ├── __init__.py         #   create_driver(): ROBOT_TYPE → 드라이버 (lazy import)
     │   ├── base.py             #   공통 인터페이스(ABC): get_status() / stop() / home()
