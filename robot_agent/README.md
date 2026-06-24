@@ -3,19 +3,112 @@
 로봇 PC 온보드 에이전트. 5대의 로봇 PC가 **동일한 코드**로 `:9001` 포트에 FastAPI 서버를 띄우고,
 `.env` 의 `ROBOT_TYPE` 한 줄만 다르게 두어 arm / driving 동작을 전환한다.
 
-## 시스템 구성
+## 시스템 구성 및 아키텍처
 
-```
-중앙 PC (192.168.0.9)
-  central_server (FastAPI) ── HTTP/WS ──┬─→ 192.168.0.70:9001  JetCobot-1  (ROBOT_TYPE=arm)
-                                        ├─→ 192.168.0.72:9001  JetCobot-2  (ROBOT_TYPE=arm)
-                                        ├─→ 192.168.0.71:9001  Pinky-1     (ROBOT_TYPE=driving)
-                                        ├─→ 192.168.0.73:9001  Pinky-2     (ROBOT_TYPE=driving)
-                                        └─→ 192.168.0.74:9001  Pinky-3     (ROBOT_TYPE=driving)
+중앙 관제 서버(Gateway)에서 각 로봇 온보드 에이전트(FastAPI)로 요청을 라우팅하고, 각 에이전트가 내부적으로 시리얼 통신 혹은 ROS2(rclpy)를 통해 물리 로봇 장비를 제어하는 아키텍처입니다.
 
-각 로봇 PC
-  robot_agent (FastAPI) ── 내부 ──→ rclpy Node ── ROS2 ──→ 로봇 하드웨어
+### 아키텍처 다이어그램 (Mermaid)
+
+```mermaid
+graph TD
+    %% 스타일 정의
+    classDef user fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
+    classDef central fill:#efebe9,stroke:#5d4037,stroke-width:2px;
+    classDef agent_arm fill:#ede7f6,stroke:#7b1fa2,stroke-width:2px;
+    classDef agent_drive fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    classDef hw_arm fill:#fff3e0,stroke:#f57c00,stroke-width:2px;
+    classDef hw_drive fill:#f1f8e9,stroke:#558b2f,stroke-width:2px;
+
+    %% 사용자 영역
+    User([사용자 / 웹 브라우저]):::user
+
+    %% 중앙 관제 서버 영역 (Gateway)
+    subgraph CentralServer["중앙 관제 서버 (Gateway PC - 192.168.0.9)"]
+        Frontend["어드민 콘솔 웹 (Port :9002)<br/>React/Vite Dashboard"]:::central
+        Backend["관제 API 서버 (Port :9000)<br/>FastAPI / SQLite / YOLO 모델"]:::central
+    end
+
+    %% 네트워크 연결
+    User -->|HTTP / WebSocket 접속| Frontend
+    Frontend -->|API 요청 및 상태 조회| Backend
+
+    %% 로봇팔 에이전트 영역 (ROBOT_TYPE=arm)
+    subgraph RobotArmAgents["로봇팔 에이전트 그룹 (ROBOT_TYPE=arm)"]
+        subgraph JetCobot1["[로봇팔 1] JetCobot-1 (192.168.0.70)"]
+            AgentArm1["FastAPI Agent (Port :9001)"]:::agent_arm
+            DriverArm1["ArmDriver (pymycobot)"]:::agent_arm
+            MCU_Arm1["물리 로봇팔 하드웨어<br/>(MyCobot 280 Pi / Arduino)"]:::hw_arm
+        end
+
+        subgraph JetCobot2["[로봇팔 2] JetCobot-2 (192.168.0.72)"]
+            AgentArm2["FastAPI Agent (Port :9001)"]:::agent_arm
+            DriverArm2["ArmDriver (pymycobot)"]:::agent_arm
+            MCU_Arm2["물리 로봇팔 하드웨어<br/>(MyCobot 280 Pi / Arduino)"]:::hw_arm
+        end
+    end
+
+    %% 주행로봇 에이전트 영역 (ROBOT_TYPE=driving)
+    subgraph DrivingAgents["주행 로봇 에이전트 그룹 (ROBOT_TYPE=driving)"]
+        subgraph Pinky1["[주행봇 1] Pinky-1 (192.168.0.71)"]
+            AgentDrive1["FastAPI Agent (Port :9001)"]:::agent_drive
+            NodeDrive1["rclpy ROS2 Node"]:::agent_drive
+            STM_Drive1["STM32 모터/센서 컨트롤러<br/>(serial / motor_ctrl.py)"]:::hw_drive
+        end
+
+        subgraph Pinky2["[주행봇 2] Pinky-2 (192.168.0.73)"]
+            AgentDrive2["FastAPI Agent (Port :9001)"]:::agent_drive
+            NodeDrive2["rclpy ROS2 Node"]:::agent_drive
+            STM_Drive2["STM32 모터/센서 컨트롤러<br/>(serial / motor_ctrl.py)"]:::hw_drive
+        end
+
+        subgraph Pinky3["[주행봇 3] Pinky-3 (192.168.0.74)"]
+            AgentDrive3["FastAPI Agent (Port :9001)"]:::agent_drive
+            NodeDrive3["rclpy ROS2 Node"]:::agent_drive
+            STM_Drive3["STM32 모터/센서 컨트롤러<br/>(serial / motor_ctrl.py)"]:::hw_drive
+        end
+    end
+
+    %% Gateway에서 각 로봇으로 요청 중계 (Forwarding)
+    Backend -->|API/WS Command| AgentArm1
+    Backend -->|API/WS Command| AgentArm2
+    Backend -->|API/WS Command| AgentDrive1
+    Backend -->|API/WS Command| AgentDrive2
+    Backend -->|API/WS Command| AgentDrive3
+
+    %% 로봇팔 제어 흐름
+    AgentArm1 -->|호출| DriverArm1
+    DriverArm1 -->|USB 시리얼 제어 /dev/ttyUSB0| MCU_Arm1
+
+    AgentArm2 -->|호출| DriverArm2
+    DriverArm2 -->|USB 시리얼 제어 /dev/ttyUSB0| MCU_Arm2
+
+    %% 주행로봇 제어 흐름
+    AgentDrive1 -->|Topic 발행/구독| NodeDrive1
+    NodeDrive1 -->|ROS2 cmd_vel / odom| STM_Drive1
+    AgentDrive1 -.->|ROS2 미구동 시 직접 통신 폴백| STM_Drive1
+
+    AgentDrive2 -->|Topic 발행/구독| NodeDrive2
+    NodeDrive2 -->|ROS2 cmd_vel / odom| STM_Drive2
+    AgentDrive2 -.->|ROS2 미구동 시 직접 통신 폴백| STM_Drive2
+
+    AgentDrive3 -->|Topic 발행/구독| NodeDrive3
+    NodeDrive3 -->|ROS2 cmd_vel / odom| STM_Drive3
+    AgentDrive3 -.->|ROS2 미구동 시 직접 통신 폴백| STM_Drive3
 ```
+
+### 제어 흐름 및 역할 설명
+
+1. **중앙 관제 서버 (Gateway 역할 - `192.168.0.9`)**:
+   * 프론트엔드 웹 화면(`:9002`) 혹은 백엔드 관제 API 서버(`:9000`)가 전체 로봇들의 API 진입점인 **Gateway** 역할을 합니다.
+   * 사용자의 명령을 수신하면 각 로봇의 온보드 PC IP 주소와 포트(`:9001`)로 요청을 전달(Forwarding)합니다.
+2. **로봇 온보드 에이전트 (`robot_agent` - FastAPI)**:
+   * 로봇 PC 안에서 실행되는 온보드 웹 서비스로, 5대의 로봇 모두 **완전히 동일한 코드**로 실행되며 오직 `.env` 설정에 따라 로봇팔(`arm`) 또는 주행로봇(`driving`)으로 기동합니다.
+3. **로봇팔 제어 (JetCobot-1, JetCobot-2)**:
+   * FastAPI 요청 수신 시, `ArmDriver`가 파이썬 라이브러리(`pymycobot`)를 사용하여 USB-시리얼 케이블을 통해 물리 모터 보드에 직접 명령을 전송합니다 (ROS2 미경유).
+4. **주행 로봇 제어 (Pinky-1, Pinky-2, Pinky-3)**:
+   * FastAPI 요청 수신 시, 백그라운드에서 동작 중인 ROS2 노드(`rclpy`)에 명령을 내려 속도 토픽(`cmd_vel`)을 발생시키고 바퀴를 제어합니다.
+   * 만약 ROS2가 구동 중이 아닌 경우, 에이전트가 직접 모터 스크립트([motor_ctrl.py](file:///home/robotPrj_Boilerplate/robot_agent/app/hardware/motor_ctrl.py))를 실행해 시리얼 통신으로 제어하는 폴백(Fallback) 방식을 내장하고 있습니다.
+
 
 ## 폴더 구조
 
