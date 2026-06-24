@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     ros_node_name: str = "robot_agent"
     camera_color_swap: str = "none"  # "none", "rgb_bgr", "yuv_uv"
     camera_flip: str = "none"        # "none", "vertical", "horizontal", "both"
+    camera_device: str = "0"         # V4L2 camera device index or path (e.g. "/dev/jetcocam0" or "0")
 
 
 settings = Settings()

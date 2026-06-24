@@ -1,3 +1,4 @@
+import os
 import threading
 import time
 from typing import Any
@@ -17,6 +18,7 @@ class CameraManager:
         self._lock = threading.Lock()
         self._cam_lock = threading.Lock()
         self._cam: "Picamera2 | None" = None
+        self._cap: cv2.VideoCapture | None = None
         self._frame: bytes | None = None
         self._frame_id = 0
         self._analysis: dict[str, Any] | None = None
@@ -35,7 +37,6 @@ class CameraManager:
 
     def stop(self) -> None:
         self._running = False
-        # capture_array() 블록 해제를 위해 카메라를 즉시 강제 닫음
         with self._cam_lock:
             cam = self._cam
             self._cam = None
@@ -45,6 +46,15 @@ class CameraManager:
                 cam.close()
             except Exception:
                 pass
+        
+        cap = self._cap
+        self._cap = None
+        if cap is not None:
+            try:
+                cap.release()
+            except Exception:
+                pass
+
         if self._thread:
             self._thread.join(timeout=5)
             self._thread = None
@@ -128,12 +138,29 @@ class CameraManager:
             return cv2.flip(frame_bgr, -1)
         return frame_bgr
 
-    def _loop(self) -> None:
-        if not _PICAMERA2_AVAILABLE:
-            self._error = "picamera2 라이브러리가 없습니다"
-            self._running = False
+    def _push_frame(self, frame_bgr: np.ndarray) -> None:
+        # 카메라가 180도 뒤집혀 장착되어 있으므로 회전 보정
+        frame_bgr = cv2.rotate(frame_bgr, cv2.ROTATE_180)
+        frame_bgr = self._apply_color_swap(frame_bgr)
+        frame_bgr = self._apply_camera_flip(frame_bgr)
+
+        analysis = self._analyze_frame(frame_bgr)
+        ok, buf = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        if not ok:
             return
 
+        with self._lock:
+            self._frame = buf.tobytes()
+            self._frame_id += 1
+            self._analysis = analysis
+
+    def _loop(self) -> None:
+        if _PICAMERA2_AVAILABLE:
+            self._loop_picamera2()
+        else:
+            self._loop_v4l2()
+
+    def _loop_picamera2(self) -> None:
         try:
             cam = Picamera2()
             config = cam.create_preview_configuration(
@@ -144,8 +171,8 @@ class CameraManager:
             with self._cam_lock:
                 self._cam = cam
         except Exception as e:
-            self._error = f"카메라를 열 수 없습니다: {e}"
-            self._running = False
+            self._error = f"Picamera2를 열 수 없습니다: {e} - V4L2로 재시도합니다."
+            self._loop_v4l2()
             return
 
         # 첫 프레임 안정화 대기
@@ -159,29 +186,13 @@ class CameraManager:
                     self._error = str(e)
                     break
 
-                # picamera2 RGB888 포맷은 실제로 BGR 메모리 순서로 데이터를 반환
-                # → 변환 없이 바로 사용 가능 (imencode는 BGR을 기대)
-                # 카메라가 180도 뒤집혀 장착되어 있으므로 회전 보정
-                frame_bgr = cv2.rotate(frame_bgr, cv2.ROTATE_180)
-                frame_bgr = self._apply_color_swap(frame_bgr)
-                frame_bgr = self._apply_camera_flip(frame_bgr)
-
-                analysis = self._analyze_frame(frame_bgr)
-                ok, buf = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])
-                if not ok:
-                    continue
-
-                with self._lock:
-                    self._frame = buf.tobytes()
-                    self._frame_id += 1
-                    self._analysis = analysis
-
+                self._push_frame(frame_bgr)
                 time.sleep(0.033)  # ~30 fps
         except Exception as e:
             self._error = str(e)
         finally:
             with self._cam_lock:
-                owned = self._cam is cam  # stop()이 먼저 닫았으면 False
+                owned = (self._cam is cam)
                 if owned:
                     self._cam = None
             if owned:
@@ -190,6 +201,45 @@ class CameraManager:
                     cam.close()
                 except Exception:
                     pass
+            self._running = False
+
+    def _loop_v4l2(self) -> None:
+        from app.config import settings
+        dev_str = getattr(settings, "camera_device", "0")
+        
+        # 디바이스 경로 또는 인덱스 판별
+        if dev_str.isdigit():
+            dev: int | str = int(dev_str)
+        else:
+            dev = dev_str
+            
+        if isinstance(dev, str) and not os.path.exists(dev):
+            dev = 0
+
+        cap = cv2.VideoCapture(dev)
+        if not cap.isOpened():
+            self._error = f"카메라를 열 수 없습니다 (V4L2): {dev}"
+            self._running = False
+            return
+
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        cap.set(cv2.CAP_PROP_FPS, 30)
+        self._cap = cap
+
+        try:
+            while self._running:
+                ret, frame_bgr = cap.read()
+                if not ret:
+                    time.sleep(0.1)
+                    continue
+                self._push_frame(frame_bgr)
+                time.sleep(0.01)
+        except Exception as e:
+            self._error = str(e)
+        finally:
+            cap.release()
+            self._cap = None
             self._running = False
 
 
