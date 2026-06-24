@@ -25,26 +25,40 @@ robot_agent/
 ├── .env                        # 실제 환경 설정 (PC마다 ROBOT_TYPE 다르게 설정)
 ├── start.sh                    # 가상환경 생성·의존성 설치·서버 시작 스크립트
 ├── stop.sh                     # 서버 중지 스크립트
-├── requirements.txt            # 공통 의존성 (fastapi, uvicorn, pydantic)
+├── requirements.txt            # 공통 의존성 (fastapi, uvicorn, pydantic, python-multipart)
 ├── requirements-arm.txt        # 공통 + pymycobot      (arm PC)
 ├── requirements-driving.txt    # 공통 + ROS2(rclpy)    (driving PC)
 ├── main.py                     # 공통 진입점: ROBOT_TYPE 읽어 드라이버·라우터 선택 + rclpy 기동
+├── config/                     # ── 주행 로봇(Pinky) 파라미터 설정 ──
+│   ├── nav2_params.yaml        #   Navigation2 파라미터 파일
+│   └── slam_params.yaml        #   SLAM Toolbox 파라미터 파일
+├── scripts/                    # ── 주행 로봇(Pinky) 실행 스크립트 ──
+│   ├── run_obstacle_avoid.sh   #   장애물 회전 회피 노드 시작 스크립트
+│   └── run_turtlebot3_teleop.sh#   수동 키보드 제어 노드 시작 스크립트
 └── app/
     ├── config.py               # ROBOT_TYPE, HOST, PORT 등 .env 로드
-    ├── core/                    # ── 공통 골격 (타입 무관) ──
-    │   ├── server.py           #   create_app() + lifespan(드라이버/rclpy init·shutdown)
+    ├── core/                    # ── 공통 골격 및 ROS2 통신 모듈 ──
+    │   ├── server.py           #   create_app() + lifespan(드라이버/rclpy/ros_bridge 기동)
     │   ├── bridge.py           #   API ↔ 드라이버/ROS 공유상태 (스레드 안전, 활성 드라이버 보관)
-    │   └── ros_node.py         #   rclpy 노드 (별도 스레드 spin), driving 타입에서만 기동
+    │   ├── ros_node.py         #   rclpy 노드 라이프사이클 관리 래퍼
+    │   ├── ros_bridge.py       #   odom/map/scan 등 ROS2 토픽 송수신 및 캐싱 브릿지
+    │   └── explorer.py         #   자율 탐색(Frontier Exploration) 주행 제어 엔진
     ├── drivers/                # ── ★ 여기만 타입별로 다름 ──
     │   ├── __init__.py         #   create_driver(): ROBOT_TYPE → 드라이버 (lazy import)
     │   ├── base.py             #   공통 인터페이스(ABC): get_status() / stop() / home()
-    │   ├── arm_driver.py       #   pymycobot 관절·그리퍼 제어
-    │   └── driving_driver.py   #   ROS2 내비게이션 제어
+    │   ├── arm_driver.py       #   pymycobot 관절·그리퍼 제어 (시리얼 물리 연결)
+    │   └── driving_driver.py   #   ROS2 내비게이션 및 모터 제어 (ROS2/motor_ctrl 자동 폴백)
+    ├── hardware/               # ── 주행 로봇(Pinky) 실장비 제어 데몬 ──
+    │   ├── motor_ctrl.py       #   주행 모터 제어 daemon 래퍼
+    │   ├── sensor_ctrl.py      #   초음파/IR/IMU/배터리 센서 combo daemon 래퍼
+    │   ├── lcd_ctrl.py         #   LCD 얼굴 표정 및 텍스트 표시 daemon 래퍼
+    │   ├── led_ctrl.py         #   LED 스트립 조명 fill/pixel 제어 래퍼
+    │   └── buzzer_ctrl.py      #   부저 멜로디 및 알림음 재생 래퍼
     ├── routers/
     │   ├── common.py           #   /health · /status · /stop · /home (공통)
     │   ├── camera.py           #   카메라 송출 (공통)
-    │   ├── arm.py              #   /arm/jog · /arm/gripper
-    │   └── driving.py          #   /driving/move · /driving/rotate
+    │   ├── arm.py              #   로봇팔 제어 (/state, /angles, /gripper, /stop, /home 등)
+    │   └── driving.py          #   주행로봇 제어 (/move, /rotate, /ws/drive, /explore/start 등)
     ├── schemas/
     │   ├── arm.py              #   JogRequest · GripperRequest · JointState
     │   └── driving.py          #   MoveRequest · RotateRequest · DriveState
