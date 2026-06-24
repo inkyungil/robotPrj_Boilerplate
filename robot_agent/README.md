@@ -265,6 +265,32 @@ bash start.sh
 bash stop.sh
 ```
 
+### 4. systemd 서비스로 상시 구동 (권장 · 부팅/재시작 자동 복구)
+
+로봇 PC 부팅 시 자동으로 기동되고, 비정상 종료되어도 자동 재시작되도록 systemd 서비스로 등록할 수 있습니다.
+
+- `scripts/service_run.sh` — ROS2 환경(`/opt/ros/jazzy` + 워크스페이스, `ROS_DOMAIN_ID=88`)을 소싱하고 `.venv` 의 python 으로 `main.py` 를 포그라운드 실행하는 런처
+- `scripts/robot_agent.service` — systemd 유닛 (User=`pinky`, `Restart=always`, 부팅 시 자동시작)
+
+**설치:**
+
+```bash
+sudo cp scripts/robot_agent.service /etc/systemd/system/robot_agent.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now robot_agent.service
+```
+
+**운영 명령:**
+
+```bash
+systemctl status robot_agent.service        # 상태 확인
+sudo systemctl restart robot_agent.service  # 재시작
+sudo systemctl stop robot_agent.service     # 중지
+sudo journalctl -u robot_agent.service -f   # 실시간 로그
+```
+
+> `arm` 타입 PC 또는 `ROS_DOMAIN_ID`/워크스페이스 경로가 다른 경우 `scripts/service_run.sh` 의 ROS 소싱 부분을 환경에 맞게 수정하세요.
+
 ## 엔드포인트
 
 에이전트는 실행 시 설정된 `ROBOT_TYPE`에 따라 활성화되는 엔드포인트만 노출합니다. 또한, 중앙 관제 서버(FMS) 및 대시보드 호환을 위해 고유 에이전트 경로와 레거시 호환 경로를 모두 라우팅합니다.

@@ -41,3 +41,5 @@ htmlcov/
 .coverage
 
 .claude/
+# 런타임 PID (systemd 또는 start.sh 가 관리)
+.pid
