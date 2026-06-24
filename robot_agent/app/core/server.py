@@ -45,12 +45,11 @@ def create_app() -> FastAPI:
     )
 
     from fastapi import APIRouter
-    from app.routers import admin, camera, common, pinky_detect
+    from app.routers import camera, common, pinky_detect
 
     api = APIRouter(prefix="/api")
     api.include_router(common.router, tags=["common"])
     api.include_router(camera.router, prefix="/admin/robot/camera", tags=["camera"])
-    api.include_router(admin.router, tags=["admin"])
     api.include_router(pinky_detect.router, tags=["pinky-detect"])
 
     if settings.robot_type is RobotType.arm:
