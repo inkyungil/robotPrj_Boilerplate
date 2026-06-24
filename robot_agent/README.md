@@ -107,7 +107,59 @@ graph TD
    * FastAPI 요청 수신 시, `ArmDriver`가 파이썬 라이브러리(`pymycobot`)를 사용하여 USB-시리얼 케이블을 통해 물리 모터 보드에 직접 명령을 전송합니다 (ROS2 미경유).
 4. **주행 로봇 제어 (Pinky-1, Pinky-2, Pinky-3)**:
    * FastAPI 요청 수신 시, 백그라운드에서 동작 중인 ROS2 노드(`rclpy`)에 명령을 내려 속도 토픽(`cmd_vel`)을 발생시키고 바퀴를 제어합니다.
-   * 만약 ROS2가 구동 중이 아닌 경우, 에이전트가 직접 모터 스크립트([motor_ctrl.py](file:///home/robotPrj_Boilerplate/robot_agent/app/hardware/motor_ctrl.py))를 실행해 시리얼 통신으로 제어하는 폴백(Fallback) 방식을 내장하고 있습니다.
+    * 만약 ROS2가 구동 중이 아닌 경우, 에이전트가 직접 모터 스크립트([motor_ctrl.py](file:///home/robotPrj_Boilerplate/robot_agent/app/hardware/motor_ctrl.py))를 실행해 시리얼 통신으로 제어하는 폴백(Fallback) 방식을 내장하고 있습니다.
+
+### 🔄 데이터 흐름 및 메시지 규칙 (Data Flow & Message Rules)
+
+시스템 내에서 명령이 전송되고 상태가 수집되는 과정을 흐름도 및 시퀀스 다이어그램으로 시각화한 내용입니다.
+
+#### 1. 제어 명령 흐름 (Control Command Flow)
+사용자가 화면(조이스틱, 버튼)에서 로봇을 조작할 때, 명령이 전달되는 4단계 순서입니다.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as 웹 브라우저 (사용자 UI)
+    participant Gateway as 중앙 관제 서버 (G/W :9000/9002)
+    participant Agent as 로봇 온보드 에이전트 (:9001)
+    participant HW as 로봇 하드웨어 (모터/보드)
+
+    User->>Gateway: [1. 조작 명령 전송] HTTP POST / WS<br/>(예: "우회전", "모터 속도 50")
+    Note over Gateway: 대상 로봇 IP 조회<br/>(예: Pinky-1 = 192.168.0.71)
+    Gateway->>Agent: [2. 명령 라우팅] HTTP POST / WS 중계<br/>(예: /driving/rotate)
+    Note over Agent: env 설정에 따른 드라이버 기동<br/>(ROS2 Node 또는 시리얼 드라이버)
+    Agent->>HW: [3. 물리 제어 신호 전달]<br/>- 주행봇: rclpy를 통한 ROS2 cmd_vel 발행<br/>- 로봇팔: pymycobot을 통한 시리얼 각도 전송
+    HW->>HW: [4. 로봇 움직임 작동]
+```
+
+* **메시지 전송 규칙**: 
+  * 사용자와 중앙 서버 사이는 REST API(HTTP) 또는 빠른 반응 속도를 위해 실시간 양방향 WebSocket을 이용합니다.
+  * 중앙 서버와 각 로봇 에이전트 사이는 로봇 개별 고유 경로 `/driving/...` 또는 `/arm/...`로 라우팅되어 충돌 없이 분리 송신됩니다.
+
+---
+
+#### 2. 로봇 상태 수집 흐름 (Robot Status Monitoring Flow)
+배터리 잔량, 초음파 거리 센서 값, 오도메트리(위치 좌표) 등 로봇의 상태가 사용자 웹 화면에 도달하는 4단계 순서입니다.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant HW as 로봇 물리 센서 (배터리/IMU)
+    participant Agent as 로봇 온보드 에이전트 (:9001)
+    participant Gateway as 중앙 관제 서버 (G/W :9000)
+    actor User as 웹 브라우저 (사용자 UI)
+
+    HW->>Agent: [1. 센서 데이터 수집] 시리얼/ROS2 Topic 수신<br/>(예: 배터리 전압 12.4V)
+    Note over Agent: 센서 캐싱 데몬으로 스레드 세이프 보관
+    Agent->>Gateway: [2. 상태 전송] WebSocket / HTTP 응답<br/>(실시간 odom/sensor 데이터)
+    Note over Gateway: 데이터 가공 및 캐싱
+    Gateway->>User: [3. 브로드캐스트] WebSocket 스트림 전송<br/>(주기: 약 0.1초~0.2초 간격)
+    User->>User: [4. 대시보드 화면 갱신]<br/>(실시간 차트 및 3D 로봇 모델링 갱신)
+```
+
+* **데이터 모니터링 규칙**:
+  * **주기적 스트리밍**: 실시간성이 매우 높은 오도메트리(위치) 및 카메라 스트림 등은 **WebSocket**을 사용해 0.1초(100ms) 단위로 끊김 없이 스트리밍 전송합니다.
+  * **온디맨드 요청**: 배터리 잔량, 폰트 파일 목록 등 자주 바뀌지 않는 데이터는 사용자가 필요할 때만 HTTP GET 요청으로 가져와 네트워크 대역폭 낭비를 막습니다.
 
 
 ## 폴더 구조
