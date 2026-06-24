@@ -15,6 +15,7 @@ except ImportError:
 class CameraManager:
     def __init__(self) -> None:
         self._lock = threading.Lock()
+        self._cam_lock = threading.Lock()
         self._cam: "Picamera2 | None" = None
         self._frame: bytes | None = None
         self._frame_id = 0
@@ -34,6 +35,16 @@ class CameraManager:
 
     def stop(self) -> None:
         self._running = False
+        # capture_array() 블록 해제를 위해 카메라를 즉시 강제 닫음
+        with self._cam_lock:
+            cam = self._cam
+            self._cam = None
+        if cam is not None:
+            try:
+                cam.stop()
+                cam.close()
+            except Exception:
+                pass
         if self._thread:
             self._thread.join(timeout=5)
             self._thread = None
@@ -119,7 +130,8 @@ class CameraManager:
             )
             cam.configure(config)
             cam.start()
-            self._cam = cam
+            with self._cam_lock:
+                self._cam = cam
         except Exception as e:
             self._error = f"카메라를 열 수 없습니다: {e}"
             self._running = False
@@ -131,13 +143,15 @@ class CameraManager:
         try:
             while self._running:
                 try:
-                    frame_rgb = cam.capture_array()
+                    frame_bgr = cam.capture_array()
                 except Exception as e:
                     self._error = str(e)
                     break
 
-                # picamera2는 RGB888 → OpenCV BGR 변환
-                frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_BGR2RGB)
+                # picamera2 RGB888 포맷은 실제로 BGR 메모리 순서로 데이터를 반환
+                # → 변환 없이 바로 사용 가능 (imencode는 BGR을 기대)
+                # 카메라가 180도 뒤집혀 장착되어 있으므로 회전 보정
+                frame_bgr = cv2.rotate(frame_bgr, cv2.ROTATE_180)
                 frame_bgr = self._apply_color_swap(frame_bgr)
 
                 analysis = self._analyze_frame(frame_bgr)
@@ -154,12 +168,16 @@ class CameraManager:
         except Exception as e:
             self._error = str(e)
         finally:
-            try:
-                cam.stop()
-                cam.close()
-            except Exception:
-                pass
-            self._cam = None
+            with self._cam_lock:
+                owned = self._cam is cam  # stop()이 먼저 닫았으면 False
+                if owned:
+                    self._cam = None
+            if owned:
+                try:
+                    cam.stop()
+                    cam.close()
+                except Exception:
+                    pass
             self._running = False
 
 
