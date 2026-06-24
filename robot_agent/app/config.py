@@ -1,4 +1,5 @@
 from enum import Enum
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -11,7 +12,10 @@ class RobotType(str, Enum):
 class Settings(BaseSettings):
     """환경변수(.env)에서 로드되는 에이전트 설정."""
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=Path(__file__).resolve().parent.parent / ".env",
+        extra="ignore"
+    )
 
     robot_type: RobotType = RobotType.arm
     host: str = "0.0.0.0"

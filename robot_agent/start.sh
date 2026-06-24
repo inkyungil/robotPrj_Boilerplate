@@ -24,7 +24,9 @@ else
 fi
 
 echo "robot_agent 시작..."
-nohup python3 "$SCRIPT_DIR/main.py" > "$LOG_FILE" 2>&1 &
+cd "$SCRIPT_DIR"
+export PYTHONUNBUFFERED=1
+nohup python3 main.py > "$LOG_FILE" 2>&1 &
 echo $! > "$PID_FILE"
 
 sleep 2
