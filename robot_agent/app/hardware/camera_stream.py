@@ -117,6 +117,17 @@ class CameraManager:
             return cv2.cvtColor(yuv, cv2.COLOR_YUV2BGR)
         return frame_bgr
 
+    def _apply_camera_flip(self, frame_bgr: np.ndarray) -> np.ndarray:
+        from app.config import settings
+        mode = getattr(settings, "camera_flip", "none").lower()
+        if mode == "vertical":
+            return cv2.flip(frame_bgr, 0)
+        elif mode == "horizontal":
+            return cv2.flip(frame_bgr, 1)
+        elif mode == "both":
+            return cv2.flip(frame_bgr, -1)
+        return frame_bgr
+
     def _loop(self) -> None:
         if not _PICAMERA2_AVAILABLE:
             self._error = "picamera2 라이브러리가 없습니다"
@@ -153,6 +164,7 @@ class CameraManager:
                 # 카메라가 180도 뒤집혀 장착되어 있으므로 회전 보정
                 frame_bgr = cv2.rotate(frame_bgr, cv2.ROTATE_180)
                 frame_bgr = self._apply_color_swap(frame_bgr)
+                frame_bgr = self._apply_camera_flip(frame_bgr)
 
                 analysis = self._analyze_frame(frame_bgr)
                 ok, buf = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])

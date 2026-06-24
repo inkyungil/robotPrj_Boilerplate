@@ -310,7 +310,7 @@ function RobotPinkyDetectPage() {
             <CardContent>
               <div className="flex aspect-video items-center justify-center overflow-hidden rounded-lg bg-slate-950">
                 {frameUrl
-                  ? <img src={frameUrl} className="h-full w-full object-contain" style={{ transform: "scaleY(-1)" }} alt="YOLO detection" />
+                  ? <img src={frameUrl} className="h-full w-full object-contain" alt="YOLO detection" />
                   : (
                     <div className="text-center text-slate-500">
                       <ScanEye className="mx-auto mb-2 size-10 opacity-40" />

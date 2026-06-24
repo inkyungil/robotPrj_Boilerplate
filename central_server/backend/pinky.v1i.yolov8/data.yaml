@@ -1,0 +1,14 @@
+path: /home/Aiprj/bot_ai_server/backend/pinky.v1i.yolov8
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 2
+names: ['human', 'pinky_63']
+
+roboflow:
+  workspace: -nfl0m
+  project: pinky-t3hje-dq9te
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/-nfl0m/pinky-t3hje-dq9te/dataset/1

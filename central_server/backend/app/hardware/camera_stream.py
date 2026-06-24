@@ -188,8 +188,20 @@ class CameraManager:
             return cv2.cvtColor(yuv, cv2.COLOR_YUV2BGR)
         return frame_bgr
 
+    def _apply_camera_flip(self, frame_bgr: np.ndarray) -> np.ndarray:
+        import os
+        mode = os.getenv("CAMERA_FLIP", "none").lower()
+        if mode == "vertical":
+            return cv2.flip(frame_bgr, 0)
+        elif mode == "horizontal":
+            return cv2.flip(frame_bgr, 1)
+        elif mode == "both":
+            return cv2.flip(frame_bgr, -1)
+        return frame_bgr
+
     def _push_frame(self, frame_bgr: np.ndarray) -> None:
         frame_bgr = self._apply_color_swap(frame_bgr)
+        frame_bgr = self._apply_camera_flip(frame_bgr)
         analysis = self._analyze_frame(frame_bgr)
         ok, buf = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])
         if not ok:
