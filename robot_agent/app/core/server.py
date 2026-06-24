@@ -49,7 +49,7 @@ def create_app() -> FastAPI:
 
     api = APIRouter(prefix="/api")
     api.include_router(common.router, tags=["common"])
-    api.include_router(camera.router, prefix="/camera", tags=["camera"])
+    api.include_router(camera.router, prefix="/admin/robot/camera", tags=["camera"])
     api.include_router(admin.router, tags=["admin"])
     api.include_router(pinky_detect.router, tags=["pinky-detect"])
 
