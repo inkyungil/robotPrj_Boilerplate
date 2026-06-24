@@ -22,6 +22,9 @@
 ```
 robot_agent/
 ├── .env.example                # ROBOT_TYPE=arm|driving, PORT=9001 (PC마다 한 줄만 다름)
+├── .env                        # 실제 환경 설정 (PC마다 ROBOT_TYPE 다르게 설정)
+├── start.sh                    # 가상환경 생성·의존성 설치·서버 시작 스크립트
+├── stop.sh                     # 서버 중지 스크립트
 ├── requirements.txt            # 공통 의존성 (fastapi, uvicorn, pydantic)
 ├── requirements-arm.txt        # 공통 + pymycobot      (arm PC)
 ├── requirements-driving.txt    # 공통 + ROS2(rclpy)    (driving PC)
@@ -61,16 +64,47 @@ robot_agent/
 
 ## 실행
 
+### 1. .env 설정
+
+PC 타입에 맞게 `.env` 파일의 `ROBOT_TYPE`을 설정한다.
+
+```bash
+# arm PC (JetCobot)
+ROBOT_TYPE=arm
+
+# driving PC (Pinky)
+ROBOT_TYPE=driving
+```
+
+### 2. 서버 시작
+
+```bash
+bash start.sh
+```
+
+- 가상환경(`.venv`)이 없으면 자동 생성
+- `python3-venv` 패키지가 없으면 자동 설치 (sudo 필요)
+- 의존성 자동 설치 후 백그라운드로 서버 실행
+- 로그: `robot_agent.log`
+- 실행 확인: http://0.0.0.0:9001/health
+
+### 3. 서버 중지
+
+```bash
+bash stop.sh
+```
+
+### 4. 수동 실행 (스크립트 없이)
+
 ```bash
 # arm PC
 pip install -r requirements-arm.txt
-cp .env.example .env        # ROBOT_TYPE=arm
+python main.py
 
-# driving PC
+# driving PC (ROS2 환경 소스 필요)
+source /opt/ros/jazzy/setup.bash
 pip install -r requirements-driving.txt
-cp .env.example .env        # ROBOT_TYPE=driving
-
-python main.py              # → http://0.0.0.0:9001  (docs: /docs)
+python main.py
 ```
 
 ## 엔드포인트
