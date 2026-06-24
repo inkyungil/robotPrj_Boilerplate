@@ -16,12 +16,12 @@ if [ ! -d "$VENV_DIR" ]; then
         sudo apt install -y python3.12-venv
         python3 -m venv "$VENV_DIR" --system-site-packages
     fi
+    source "$VENV_DIR/bin/activate"
+    echo "의존성 설치 중..."
+    pip install -q -r "$SCRIPT_DIR/requirements-driving.txt"
+else
+    source "$VENV_DIR/bin/activate"
 fi
-
-source "$VENV_DIR/bin/activate"
-
-echo "의존성 설치 중..."
-pip install -q -r "$SCRIPT_DIR/requirements-driving.txt"
 
 echo "robot_agent 시작..."
 nohup python3 "$SCRIPT_DIR/main.py" > "$LOG_FILE" 2>&1 &
