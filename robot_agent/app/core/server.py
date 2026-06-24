@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import RobotType, settings
 from app.core.bridge import bridge
@@ -34,6 +35,13 @@ def create_app() -> FastAPI:
         title=f"Robot Agent ({settings.robot_type.value})",
         version="0.1.0",
         lifespan=lifespan,
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     # 공통 라우터 (타입 무관)
