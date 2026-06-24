@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import AdminSessionLocal, init_db
 from app.models import Admin
 from app.hardware.camera_stream import camera as camera_hw
-from app.routers import arm, auth, camera, chat, dashboard, dev, drive, maps, robot, robots, ros, users
+from app.routers import arm, auth, camera, chat, dashboard, dev, drive, maps, pinky_yolo, robot, robots, ros, users
 from app.security import hash_password
 
 app = FastAPI(title="Labi Bot Admin API", version="1.0.0")
@@ -30,6 +30,7 @@ app.include_router(ros.router)
 app.include_router(maps.router)
 app.include_router(camera.router)
 app.include_router(chat.router)
+app.include_router(pinky_yolo.router)
 
 
 @app.get("/api/health")

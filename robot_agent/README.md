@@ -98,7 +98,7 @@ bash start.sh
 
 - 가상환경(`.venv`)이 없으면 자동 생성
 - `python3-venv` 패키지가 없으면 자동 설치 (sudo 필요)
-- 의존성 자동 설치 후 백그라운드로 서버 실행
+- 의존성 설치 후 백그라운드로 서버 실행
 - 로그: `robot_agent.log`
 - 실행 확인: http://0.0.0.0:9001/health
 
@@ -108,29 +108,93 @@ bash start.sh
 bash stop.sh
 ```
 
-### 4. 수동 실행 (스크립트 없이)
-
-```bash
-# arm PC
-pip install -r requirements-arm.txt
-python main.py
-
-# driving PC (ROS2 환경 소스 필요)
-source /opt/ros/jazzy/setup.bash
-pip install -r requirements-driving.txt
-python main.py
-```
-
 ## 엔드포인트
 
-| 메서드 | 경로 | 타입 | 설명 |
-|--------|------|------|------|
-| GET  | `/health`         | 공통    | 헬스 체크 |
-| GET  | `/status`         | 공통    | 현재 상태 (드라이버가 형태 결정) |
-| POST | `/stop`           | 공통    | 즉시 정지 |
-| POST | `/home`           | 공통    | 홈 포지션 이동/복귀 |
-| GET  | `/camera/info`    | 공통    | 카메라 메타데이터 |
-| POST | `/arm/jog`        | arm     | 단일 관절 조그 |
-| POST | `/arm/gripper`    | arm     | 그리퍼 개폐 |
-| POST | `/driving/move`   | driving | 직선 이동 |
-| POST | `/driving/rotate` | driving | 제자리 회전 |
+에이전트는 실행 시 설정된 `ROBOT_TYPE`에 따라 활성화되는 엔드포인트만 노출합니다. 또한, 중앙 관제 서버(FMS) 및 대시보드 호환을 위해 고유 에이전트 경로와 레거시 호환 경로를 모두 라우팅합니다.
+
+### 1. 공통 API (Common - 모든 모드 공통 활성화)
+기본적으로 `/api/...` 프리픽스 하에 제공됩니다.
+
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| GET | `/api/health` | 에이전트 헬스 체크 |
+| GET | `/api/status` | 현재 에이전트 드라이버 상태 (드라이버가 형태 결정) |
+| POST | `/api/stop` | 즉시 정지 |
+| POST | `/api/home` | 홈 포지션 복귀 |
+| GET | `/api/admin/robot/lcd/fonts` | 사용 가능한 LCD 폰트 목록 조회 |
+| GET | `/api/arm/pinky-detect/status` | 검출 모델 상태 조회 (중앙 서버 처리 관련 안내) |
+
+### 2. 카메라 제어 API (Camera - 공통)
+카메라 제어는 모든 에이전트 PC에서 공통적으로 지원하며, `/api/admin/robot/camera/...` 프리픽스로 매핑됩니다.
+
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| GET | `/api/admin/robot/camera/stream` | 카메라 MJPEG 실시간 스트림 |
+| GET | `/api/admin/robot/camera/snapshot` | 카메라 단일 스냅샷 이미지 조회 (JPEG) |
+| POST | `/api/admin/robot/camera/start` | 카메라 디바이스 기동 |
+| POST | `/api/admin/robot/camera/stop` | 카메라 디바이스 정지 |
+| GET | `/api/admin/robot/camera/status` | 카메라 동작 상태 및 성능 디버그 정보 조회 |
+
+### 3. 로봇팔 전용 API (Arm PC - `ROBOT_TYPE=arm`)
+모든 API는 `/arm/...` 경로와 `/api/arm/...` 경로(레거시/관제 서버)를 병행 지원합니다.
+
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| GET | `/arm/state` | 현재 관절 각도, 그리퍼 정보, 연결 여부 조회 |
+| POST | `/arm/angles` | 전체 관절 동시 회전 각도 제어 |
+| POST | `/arm/gripper` | 그리퍼 제어 (0 ~ 100 값 지정) |
+| POST | `/arm/stop` | 로봇팔 긴급 정지 |
+| POST | `/arm/home` | 홈 포지션 복귀 및 그리퍼 완전 오픈 |
+| POST | `/arm/jog-stop` | 조그 및 수동 조작 즉시 정지 |
+| POST | `/arm/face-view` | 얼굴 추적 뷰 포지션으로 이동 |
+| POST | `/arm/camera-view` | 카메라 작업공간 뷰 포지션으로 이동 |
+| POST | `/arm/jog` | 단일 관절 조그 이동 |
+| POST | `/arm/gripper-legacy` | 0.0~1.0 비율 기반 그리퍼 제어 |
+
+### 4. 주행 로봇 전용 API (Driving PC - `ROBOT_TYPE=driving`)
+모든 API는 `/driving/...` 경로와 `/api/admin/robot/...` 경로(레거시/관제 서버)를 병행 지원합니다.
+
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| POST | `/driving/move` | 직선 주행 제어 |
+| POST | `/driving/rotate` | 제자리 회전 제어 |
+| WS | `/driving/ws/drive` | 실시간 조이스틱 주행 WebSocket 제어 |
+| WS | `/driving/ws/explore` | SLAM 지도/오도메트리 스트림 WebSocket |
+| POST | `/driving/explore/start` | 자율 탐색 시작 (ROS SLAM 혹은 센서 장애물 회피 폴백) |
+| POST | `/driving/explore/stop` | 자율 탐색 중지 |
+| GET | `/driving/explore/status` | 자율 탐색 진행 상황 및 로그 조회 |
+| GET | `/driving/status` | ROS 도메인 상태 및 실행 프로세스(SLAM/Nav2 등) 목록 조회 |
+| POST | `/driving/process/{name}/start`| SLAM/Nav2/Teleop 프로세스 구동 (name: teleop/obstacle_avoid/slam/nav2) |
+| POST | `/driving/process/{name}/stop` | 프로세스 중단 |
+| GET | `/driving/process/{name}/log` | 프로세스 구동 로그 조회 |
+| POST | `/driving/map/save` | 현재 SLAM 지도 YAML/PGM 파일로 로컬 저장 |
+| POST | `/driving/map/reset` | SLAM 초기화 및 맵 캐시 제거 |
+| GET | `/driving/map/list` | 저장된 지도 리스트 조회 |
+| GET | `/driving/map/{name}/download` | 특정 지도 파일 압축 ZIP 다운로드 |
+| DELETE| `/driving/map/{name}` | 특정 지도 파일 삭제 |
+| GET | `/driving/drive/target` | 현재 제어 타겟(real 모드) 조회 |
+| POST | `/driving/drive/target` | 제어 타겟 설정 |
+| POST | `/driving/lcd/emotion` | LCD 전면 패널 표정 표현 |
+| POST | `/driving/lcd/stop` | LCD 표정 표현 중지 |
+| POST | `/driving/lcd/image` | LCD 이미지 파일 업로드 및 출력 |
+| POST | `/driving/lcd/image/select`| 기 업로드된 LCD 이미지 선택 출력 |
+| GET | `/driving/lcd/images` | LCD 이미지 목록 조회 |
+| DELETE| `/driving/lcd/images/{name}` | LCD 이미지 파일 삭제 |
+| POST | `/driving/lcd/text` | LCD에 커스텀 텍스트 출력 (폰트, 스크롤 등 지정) |
+| POST | `/driving/lcd/font` | LCD 한글/영문 TTF, OTF 폰트 파일 업로드 |
+| GET | `/driving/lcd/fonts` | 폰트 목록 조회 |
+| DELETE| `/driving/lcd/fonts/{name}` | 폰트 파일 삭제 |
+| POST | `/driving/led/fill` | LED 조명 단색으로 채우기 |
+| POST | `/driving/led/pixel` | LED 특정 픽셀 단위 컬러 지정 |
+| POST | `/driving/led/clear` | LED 조명 소등 |
+| POST | `/driving/led/brightness`| LED 조명 밝기 조절 |
+| POST | `/driving/buzzer` | 알람음 부저 재생 (Bell, Beep 등) |
+| GET | `/driving/buzzer/status` | 부저 멜로디 연동 여부 및 재생 상태 조회 |
+| POST | `/driving/buzzer/melody/play` | 멜로디 곡 재생 (엘리제를 위하여, 학교종 등) |
+| POST | `/driving/buzzer/melody/stop` | 멜로디 재생 강제 중단 |
+| GET | `/driving/sensor/ultrasonic`| 초음파 거리 센서 측정 결과 조회 |
+| GET | `/driving/sensor/battery` | 배터리 전압 및 잔여 퍼센트 조회 |
+| GET | `/driving/sensor/ir` | 적외선 장애물 센서 반환값 조회 |
+| GET | `/driving/sensor/imu` | IMU 가속도, 자이로, 오일러 각 측정값 조회 |
+| POST | `/driving/motor/move` | 좌우 모터 전력 속도율 직접 지정 주행 |
+| POST | `/driving/motor/stop` | 모터 직접 정지 |
