@@ -277,3 +277,9 @@ bash stop.sh
 | GET | `/driving/sensor/imu` | IMU 가속도, 자이로, 오일러 각 측정값 조회 |
 | POST | `/driving/motor/move` | 좌우 모터 전력 속도율 직접 지정 주행 |
 | POST | `/driving/motor/stop` | 모터 직접 정지 |
+
+---
+
+## 5. 분석 보고서
+* [핑키프로 YOLOv8 인식 신뢰도 임계값 분석 보고서](file:///home/robotPrj_Boilerplate/robot_agent/pinky_detect_threshold_report.md)
+
