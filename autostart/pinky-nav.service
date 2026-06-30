@@ -1,0 +1,13 @@
+[Unit]
+Description=Pinky nav2 + web server
+After=pinky-hardware.service
+Requires=pinky-hardware.service
+
+[Service]
+User=pinky
+ExecStartPre=/bin/sleep 5
+ExecStart=/home/pinky/start_nav.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

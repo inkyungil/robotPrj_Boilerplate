@@ -1,0 +1,11 @@
+[Unit]
+Description=Pinky robot hardware bringup
+After=network.target
+
+[Service]
+User=pinky
+ExecStart=/home/pinky/start_hardware.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
