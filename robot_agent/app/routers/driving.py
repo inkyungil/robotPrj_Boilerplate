@@ -19,9 +19,21 @@ from pydantic import BaseModel, Field
 
 from app.core.bridge import bridge
 from app.drivers.driving_driver import DrivingDriver
-from app.schemas.driving import MoveRequest, RotateRequest
+from app.schemas.driving import (
+    GoalRequest,
+    LocationSetRequest,
+    MissionStartRequest,
+    MoveRequest,
+    NameRequest,
+    RotateRequest,
+    SaveMapRequest,
+    ScheduleStartRequest,
+)
 
 router = APIRouter()
+
+# Nav2 대시보드 전용 라우터 — Flask(nav2_web_server.py)와 동일한 /api/* 경로로 노출한다.
+nav_router = APIRouter()
 
 def _driver() -> DrivingDriver:
     return cast(DrivingDriver, bridge.driver)
@@ -876,3 +888,133 @@ async def motor_move(req: MotorMoveReq):
 @router.post("/motor/stop")
 async def motor_stop():
     return await _run(f"sudo -n python3 {_MOTOR_SCRIPT} stop", timeout=8)
+
+
+# ── Nav2 대시보드 (nav2_web_server.py 이전) ────────────────────────────
+# 맵/경로/costmap/위치저장/순찰/스케줄/SLAM 제어.
+# Flask(nav2_web_server.py)와 동일하게 `/api/...` 경로로 노출된다 (nav_router).
+
+def _require_ros() -> None:
+    from app.core import ros_bridge
+    if not ros_bridge.is_active():
+        raise HTTPException(503, "ROS 브리지가 활성화되지 않았습니다")
+
+
+@nav_router.get("/state", summary="맵+pose+경로+costmap+배터리+미션 스냅샷")
+async def nav_state():
+    from app.core import mission, ros_bridge
+    if not ros_bridge.is_active():
+        raise HTTPException(503, "ROS 브리지가 활성화되지 않았습니다")
+    snap = ros_bridge.get_nav_snapshot()
+    snap["mission"] = mission.get_status()
+    return snap
+
+
+@nav_router.post("/goal", summary="좌표 목표 주행")
+async def nav_goal(req: GoalRequest):
+    from app.core import ros_bridge
+    _require_ros()
+    return {"success": ros_bridge.send_nav_goal(req.x, req.y, req.yaw)}
+
+
+@nav_router.get("/locations", summary="등록된 명명 위치 목록")
+async def nav_locations():
+    from app.core import locations
+    return locations.load()
+
+
+@nav_router.post("/locations/set", summary="위치 저장(좌표 또는 현재 TF 위치)")
+async def nav_locations_set(req: LocationSetRequest):
+    from app.core import locations, ros_bridge
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(400, "name이 필요합니다")
+
+    if req.x is not None and req.y is not None:
+        x, y, yaw = req.x, req.y, req.yaw
+    else:
+        _require_ros()
+        pose = ros_bridge.get_current_pose()
+        if pose is None:
+            raise HTTPException(
+                409, "현재 위치(TF)를 아직 알 수 없습니다. 위치추정/주행을 먼저 확인하세요.")
+        x, y, yaw = pose
+
+    locations.set_location(name, x, y, yaw)
+    return {"success": True, "name": name, "x": x, "y": y, "yaw": yaw}
+
+
+@nav_router.post("/locations/delete", summary="위치 삭제")
+async def nav_locations_delete(req: NameRequest):
+    from app.core import locations
+    if locations.delete(req.name.strip()):
+        return {"success": True, "name": req.name}
+    raise HTTPException(404, f"'{req.name}' 위치가 없습니다")
+
+
+@nav_router.post("/goto", summary="명명 위치로 주행")
+async def nav_goto(req: NameRequest):
+    from app.core import locations, ros_bridge
+    _require_ros()
+    p = locations.get(req.name.strip())
+    if p is None:
+        raise HTTPException(404, f"'{req.name}' 위치가 등록되지 않았습니다")
+    ok = ros_bridge.send_nav_goal(float(p["x"]), float(p["y"]), float(p.get("yaw", 0.0)))
+    return {"success": ok, "name": req.name}
+
+
+@nav_router.post("/mission/start", summary="순찰/경유 시작")
+async def nav_mission_start(req: MissionStartRequest):
+    from app.core import locations, mission
+    _require_ros()
+    names = req.names or locations.names_sorted()
+    ok = mission.start_mission(names, req.loop)
+    return {"success": ok, "names": names, "loop": req.loop}
+
+
+@nav_router.post("/mission/stop", summary="순찰/경유 중지")
+async def nav_mission_stop():
+    from app.core import mission
+    mission.stop_mission()
+    return {"success": True}
+
+
+@nav_router.post("/home", summary="홈 복귀(HOME 구역 또는 맵 원점)")
+async def nav_home():
+    from app.core import mission
+    _require_ros()
+    return {"success": mission.go_home()}
+
+
+@nav_router.post("/schedule/start", summary="스케줄 순찰 시작")
+async def nav_schedule_start(req: ScheduleStartRequest):
+    from app.core import locations, mission
+    _require_ros()
+    names = req.names or locations.names_sorted()
+    ok = mission.start_schedule(req.minutes, names, req.loop)
+    return {"success": ok, "minutes": req.minutes, "names": names}
+
+
+@nav_router.post("/schedule/stop", summary="스케줄 순찰 중지")
+async def nav_schedule_stop():
+    from app.core import mission
+    mission.stop_schedule()
+    return {"success": True}
+
+
+@nav_router.post("/slam/reset", summary="SLAM 새 맵 시작(reset)")
+async def nav_slam_reset():
+    from app.core import ros_bridge
+    _require_ros()
+    ok = ros_bridge.slam_reset()
+    if ok:
+        ros_bridge.clear_map()
+    return {"success": ok}
+
+
+@nav_router.post("/slam/save_map", summary="현재 SLAM 맵 저장")
+async def nav_slam_save_map(req: SaveMapRequest):
+    from app.core import ros_bridge
+    _require_ros()
+    name = req.name.strip() or time.strftime("pinky_map_%Y%m%d_%H%M%S")
+    return {"success": ros_bridge.slam_save_map(name), "name": name}

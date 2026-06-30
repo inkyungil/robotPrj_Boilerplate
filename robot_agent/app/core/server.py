@@ -64,6 +64,9 @@ def create_app() -> FastAPI:
         app.include_router(driving.router, prefix="/driving", tags=["driving"])
         # /api/admin/robot 경로 지원 (api 라우터의 /api prefix + /admin/robot)
         api.include_router(driving.router, prefix="/admin/robot", tags=["driving-legacy"])
+        # Nav2 대시보드: Flask(nav2_web_server.py)와 동일한 /api/* 경로로 노출
+        #   → /api/state, /api/goal, /api/locations, /api/mission/start ...
+        api.include_router(driving.nav_router, tags=["nav"])
 
     app.include_router(api)
 
